@@ -1108,8 +1108,20 @@ footer {
       console.log('✓ Compte entreprise créé et email envoyé:', email);
       return cred.user.uid;
     } catch(err) {
+      if (err.code === 'auth/email-already-in-use') {
+        // Un compte existe déjà pour cet email (ex: réinscription après suppression).
+        // On ne peut pas récupérer son UID sans droits admin, mais on renvoie
+        // quand même l'email "définir mot de passe" pour que la personne ne reste pas bloquée.
+        try {
+          await sendPasswordResetEmail(secondaryAuth, email);
+          console.log('ℹ️ Compte déjà existant — email de mot de passe renvoyé:', email);
+        } catch(e2) {
+          console.warn('Renvoi email mot de passe échoué:', e2.code, e2.message);
+        }
+        return null;
+      }
       console.warn('Création de compte entreprise échouée:', err.code, err.message);
-      return null; // ex: auth/email-already-in-use si un compte existe déjà pour cet email
+      return null;
     }
   };
 
@@ -1198,6 +1210,26 @@ footer {
 
   window.addProduitToFirestore = async function(data) {
     return await addDoc(collection(db, "produits"), data);
+  };
+
+  // Vérifie si un email est déjà utilisé par une entreprise validée
+  // ou une demande en attente (pour empêcher les doublons à l'inscription)
+  window.checkEmailAlreadyUsed = async function(email) {
+    if (!email) return false;
+    try {
+      const qEnt = query(collection(db, "entreprises"), where("email", "==", email));
+      const snapEnt = await getDocs(qEnt);
+      if (!snapEnt.empty) return true;
+
+      const qIns = query(collection(db, "inscriptions"), where("email", "==", email), where("status", "==", "en_attente"));
+      const snapIns = await getDocs(qIns);
+      if (!snapIns.empty) return true;
+
+      return false;
+    } catch(err) {
+      console.warn("Vérification email échouée:", err);
+      return false; // en cas d'erreur, on ne bloque pas l'inscription
+    }
   };
 
   // ── Demandes d'inscription en attente ──
@@ -2827,9 +2859,25 @@ async function submitForm() {
     return;
   }
 
-  // UI - bouton en chargement
+  // Vérification email déjà utilisé (empêche les doublons)
   const btn = document.querySelector('#inscription .btn-primary');
   const origText = btn.textContent;
+
+  if (email && window.checkEmailAlreadyUsed) {
+    btn.textContent = 'Vérification...';
+    btn.disabled = true;
+    btn.style.opacity = '0.7';
+    const alreadyUsed = await window.checkEmailAlreadyUsed(email);
+    if (alreadyUsed) {
+      alert('⚠️ Cet email est déjà utilisé par une entreprise inscrite ou une demande en attente sur VISUUUM 224.\n\nSi vous pensez qu\'il s\'agit d\'une erreur, contactez-nous à contacts@visuuum224.com.');
+      btn.textContent = origText;
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      return;
+    }
+  }
+
+  // UI - bouton en chargement
   btn.textContent = 'Envoi en cours...';
   btn.disabled = true;
   btn.style.opacity = '0.7';
@@ -3213,6 +3261,19 @@ async function adminAddEntreprise() {
 
   const btn = document.querySelector('#panelAdd button');
   const statusEl = document.getElementById('a-logo-upload-status');
+
+  if (email && window.checkEmailAlreadyUsed) {
+    btn.textContent = '⏳ Vérification...';
+    btn.disabled = true;
+    const alreadyUsed = await window.checkEmailAlreadyUsed(email);
+    if (alreadyUsed) {
+      alert('⚠️ Cet email est déjà utilisé par une autre entreprise inscrite.');
+      btn.textContent = '✦ Enregistrer dans Firebase';
+      btn.disabled = false;
+      return;
+    }
+  }
+
   btn.textContent = '⏳ Enregistrement...';
   btn.disabled = true;
 
