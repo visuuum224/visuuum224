@@ -1192,6 +1192,10 @@ footer {
     return result;
   };
 
+  window.deleteEntrepriseFromFirestore = async function(docId) {
+    return await deleteDoc(doc(db, "entreprises", docId));
+  };
+
   window.addProduitToFirestore = async function(data) {
     return await addDoc(collection(db, "produits"), data);
   };
@@ -4011,17 +4015,41 @@ async function loadAdminList() {
       return;
     }
     listEl.innerHTML = data.map((e, i) => `
-      <div style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:10px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
+      <div id="admin-ent-${e.id}" style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:10px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
         <span style="font-size:22px;">${e.emoji || '🏢'}</span>
         <div style="flex:1;">
           <div style="font-weight:700;font-size:13px;color:#111;">${e.nom}</div>
           <div style="font-size:11px;color:#888;">${e.secteur} · ${e.ville}</div>
         </div>
         <span style="font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(232,98,42,.1);color:#E8622A;">${e.tag || e.secteur}</span>
+        <button onclick="supprimerEntreprise('${e.id}', '${(e.nom||'').replace(/'/g,"\\'")}')"
+          title="Supprimer cette entreprise"
+          style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;transition:.15s;"
+          onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>
       </div>
     `).join('');
   } catch(err) {
     listEl.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
+  }
+}
+
+async function supprimerEntreprise(id, nom) {
+  if (!confirm('Supprimer définitivement "' + nom + '" de l\'annuaire ?\n\nCette action est irréversible.')) return;
+
+  const el = document.getElementById('admin-ent-' + id);
+  if (el) el.style.opacity = '0.4';
+
+  try {
+    if (window.deleteEntrepriseFromFirestore) {
+      await window.deleteEntrepriseFromFirestore(id);
+    }
+    if (el) el.remove();
+    // Retire aussi de l'array local si présent
+    const idx = entreprises.findIndex(e => e.id === id);
+    if (idx !== -1) { entreprises.splice(idx, 1); renderEntreprises(); }
+  } catch(err) {
+    alert('Erreur lors de la suppression. Réessayez.');
+    if (el) el.style.opacity = '1';
   }
 }
 
@@ -4292,7 +4320,12 @@ function trackRecherche(terme) {
     <p id="adminError" style="color:#E24B4A; font-size:12px; margin-top:12px; display:none; padding:8px; background:#FEECEC; border-radius:6px;"></p>
 
     <div style="margin-top:20px; padding-top:16px; border-top:1px solid #f0f0f0;">
-      <button onclick="closeAdmin()" style="background:none; border:none; color:#999; font-size:12px; cursor:pointer;">✕ Annuler</button>
+      <button onclick="closeAdmin()"
+        style="background:#F0EFEB; border:1.5px solid #ddd; color:#666; font-size:12px; font-weight:600; padding:10px 20px; border-radius:8px; cursor:pointer; transition:.15s;"
+        onmouseover="this.style.background='#E5E3DD';this.style.borderColor='#ccc'"
+        onmouseout="this.style.background='#F0EFEB';this.style.borderColor='#ddd'"
+        onmousedown="this.style.background='#DAD8D1'"
+        onmouseup="this.style.background='#E5E3DD'">✕ Annuler</button>
     </div>
   </div>
 
@@ -4307,9 +4340,6 @@ function trackRecherche(terme) {
       </div>
       <button onclick="closeAdmin()" style="background:rgba(255,255,255,.1); border:none; color:#fff; width:34px; height:34px; border-radius:50%; font-size:16px; cursor:pointer;">✕</button>
     </div>
-
-    <!-- Tabs -->
-    <div style="display:flex; gap:0; border-bottom:1px solid #ddd; background:#fff;">
 
     <!-- Stats -->
     <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:#e5e5e5; border-bottom:1px solid #ddd;">
@@ -4334,6 +4364,9 @@ function trackRecherche(terme) {
         <div style="font-size:9px; color:#888; letter-spacing:.1em; margin-top:2px;">PAYS CONNECTÉS</div>
       </div>
     </div>
+
+    <!-- Menu / Tabs -->
+    <div style="display:flex; gap:0; border-bottom:1px solid #ddd; background:#fafafa;">
       <button class="admin-tab active" id="tab-add" onclick="switchTab('add')"
         style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid #E8622A; background:#fff; color:#E8622A;">
         🏢 Entreprise
