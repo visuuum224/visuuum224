@@ -1068,9 +1068,10 @@ footer {
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getFirestore, collection, getDocs, addDoc, serverTimestamp }
+  import { getFirestore, collection, getDocs, addDoc, serverTimestamp, doc, getDoc, updateDoc, deleteDoc, query, where }
     from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+           createUserWithEmailAndPassword, sendPasswordResetEmail, signOut as secSignOut }
     from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
   const firebaseConfig = {
@@ -1085,6 +1086,43 @@ footer {
   const app     = initializeApp(firebaseConfig);
   const db      = getFirestore(app);
   const auth    = getAuth(app);
+
+  // ── App secondaire (pour créer des comptes entreprise sans déconnecter l'admin) ──
+  const secondaryApp  = initializeApp(firebaseConfig, "secondary");
+  const secondaryAuth = getAuth(secondaryApp);
+
+  // Génère un mot de passe temporaire aléatoire (l'entrepreneur le redéfinira via email)
+  function genTempPassword() {
+    return 'Tmp!' + Math.random().toString(36).slice(-8) + Math.floor(Math.random()*1000);
+  }
+
+  // Crée un compte Firebase Auth pour une entreprise + envoie l'email "Définir mon mot de passe"
+  // Retourne l'UID du compte créé, ou null en cas d'échec.
+  window.createEntrepriseAccount = async function(email) {
+    if (!email) return null;
+    try {
+      const tempPass = genTempPassword();
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, email, tempPass);
+      await sendPasswordResetEmail(secondaryAuth, email);
+      await secSignOut(secondaryAuth);
+      console.log('✓ Compte entreprise créé et email envoyé:', email);
+      return cred.user.uid;
+    } catch(err) {
+      console.warn('Création de compte entreprise échouée:', err.code, err.message);
+      return null; // ex: auth/email-already-in-use si un compte existe déjà pour cet email
+    }
+  };
+
+  // Vérifie si l'utilisateur connecté est admin (présent dans la collection "admins")
+  window.checkIsAdmin = async function(uid) {
+    try {
+      const snap = await getDoc(doc(db, "admins", uid));
+      return snap.exists();
+    } catch(err) {
+      console.warn('Vérification admin échouée:', err);
+      return false;
+    }
+  };
 
   // ── Exposer Auth immédiatement après init ──
   window.firebaseLogin = async function(email, password) {
@@ -1126,16 +1164,19 @@ footer {
     }
   }
 
-  // ── Envoyer inscription formulaire vers Firestore ──
+  // ── Envoyer inscription formulaire vers Firestore (en attente de validation) ──
   window.sendToFirestore = async function(data) {
     try {
-      await addDoc(collection(db, "inscriptions"), {
+      const ref = await addDoc(collection(db, "inscriptions"), {
         ...data,
+        status: 'en_attente',
         timestamp: serverTimestamp()
       });
-      console.log("✓ Inscription envoyée à Firestore");
+      console.log("✓ Inscription envoyée à Firestore (en attente)");
+      return ref.id;
     } catch(err) {
       console.warn("Firestore write error:", err);
+      return null;
     }
   };
 
@@ -1147,12 +1188,66 @@ footer {
   window.getEntreprisesFromFirestore = async function() {
     const snap = await getDocs(collection(db, "entreprises"));
     const result = [];
-    snap.forEach(doc => result.push({ id: doc.id, ...doc.data() }));
+    snap.forEach(d => result.push({ id: d.id, ...d.data() }));
     return result;
   };
 
   window.addProduitToFirestore = async function(data) {
     return await addDoc(collection(db, "produits"), data);
+  };
+
+  // ── Demandes d'inscription en attente ──
+  window.getPendingInscriptions = async function() {
+    const q = query(collection(db, "inscriptions"), where("status", "==", "en_attente"));
+    const snap = await getDocs(q);
+    const result = [];
+    snap.forEach(d => result.push({ id: d.id, ...d.data() }));
+    return result;
+  };
+
+  // Valide une demande : crée le compte entreprise + la fiche entreprise + met à jour la demande
+  window.validerInscriptionFirestore = async function(inscriptionId, inscriptionData) {
+    let ownerUid = null;
+    if (inscriptionData.email) {
+      ownerUid = await window.createEntrepriseAccount(inscriptionData.email);
+    }
+    const entrepriseData = {
+      nom: inscriptionData.nom,
+      responsable: inscriptionData.responsable,
+      secteur: inscriptionData.secteur,
+      tag: (inscriptionData.secteur || '').split(' / ')[0] || inscriptionData.secteur,
+      ville: inscriptionData.ville,
+      regionNat: inscriptionData.regionNat || '',
+      regionAdmin: inscriptionData.regionAdmin || '',
+      wa: inscriptionData.whatsapp,
+      email: inscriptionData.email || '',
+      emoji: '🏢',
+      desc: inscriptionData.description,
+      logo: '',
+      adresses: [],
+      ownerUid: ownerUid || '',
+      dateAjout: new Date().toLocaleDateString('fr-FR')
+    };
+    const ref = await addDoc(collection(db, "entreprises"), entrepriseData);
+    await updateDoc(doc(db, "inscriptions", inscriptionId), { status: 'validee', entrepriseId: ref.id });
+    return { entrepriseId: ref.id, ownerUid };
+  };
+
+  window.refuserInscriptionFirestore = async function(inscriptionId) {
+    await updateDoc(doc(db, "inscriptions", inscriptionId), { status: 'refusee' });
+  };
+
+  // ── Espace entreprise (self-service) ──
+  window.getMyEntrepriseFirestore = async function(uid) {
+    const q = query(collection(db, "entreprises"), where("ownerUid", "==", uid));
+    const snap = await getDocs(q);
+    let result = null;
+    snap.forEach(d => { result = { id: d.id, ...d.data() }; });
+    return result;
+  };
+
+  window.updateEntrepriseFirestore = async function(docId, data) {
+    return await updateDoc(doc(db, "entreprises", docId), data);
   };
 
   // Lancer au chargement
@@ -1177,7 +1272,7 @@ footer {
     <a href="#marche">Marché</a>
     <a href="#defi">#Défi224</a>
     <a href="#video">Vidéo</a>
-    <a href="#" onclick="event.preventDefault();openAdmin()" style="color:var(--orange);font-weight:700;border:1.5px solid rgba(232,98,42,.3);padding:7px 16px;border-radius:20px;font-size:11px;letter-spacing:.08em;transition:all .2s;" onmouseover="this.style.background='rgba(232,98,42,.08)'" onmouseout="this.style.background='transparent'">⚙️ Admin</a>
+    <a href="#" onclick="event.preventDefault();openAdmin()" style="color:var(--orange);font-weight:700;border:1.5px solid rgba(232,98,42,.3);padding:7px 16px;border-radius:20px;font-size:11px;letter-spacing:.08em;transition:all .2s;" onmouseover="this.style.background='rgba(232,98,42,.08)'" onmouseout="this.style.background='transparent'">🔑 Se connecter</a>
     <a href="#inscription" class="nav-cta">Inscrire mon Entreprise</a>
   </div>
   <div class="nav-hamburger" onclick="toggleMenu()">
@@ -2707,6 +2802,8 @@ function setMarcheTab(tab, btn) {
 
 // ── FORM ─────────────────────────────────────────────────────────────────────
 // ── GOOGLE SHEETS URL ── Remplacez cette URL par la vôtre après configuration
+// URL du script Google Apps Script qui envoie les emails de notification d'inscription
+// (voir apps_script_emails.gs) — collez ici l'URL obtenue après déploiement.
 const GOOGLE_SHEET_URL = 'VOTRE_URL_APPS_SCRIPT_ICI';
 
 async function submitForm() {
@@ -2991,6 +3088,8 @@ async function closeAdmin() {
   document.body.style.overflow = '';
   document.getElementById('adminLogin').style.display = 'block';
   document.getElementById('adminDash').style.display = 'none';
+  const entDash = document.getElementById('entrepriseDash');
+  if (entDash) entDash.style.display = 'none';
   document.getElementById('adminError').style.display = 'none';
 }
 
@@ -3020,19 +3119,27 @@ async function checkAdmin() {
     if (!window.firebaseLogin) {
       throw new Error('Firebase Auth non disponible - rechargez la page');
     }
-    await window.firebaseLogin(email, pass);
-    // Succès
-    document.getElementById('adminLogin').style.display = 'none';
-    document.getElementById('adminDash').style.display = 'block';
+    const user = await window.firebaseLogin(email, pass);
     document.getElementById('adminEmail').value = '';
     document.getElementById('adminPassInput').value = '';
-    // Animate stats
-    setTimeout(() => animateCounter('admin-count-entreprises', 55, '+'), 200);
-    setTimeout(() => animateCounter('admin-count-secteurs', 9, ''), 300);
-    setTimeout(() => animateCounter('admin-count-regions-nat', 4, ''), 400);
-    setTimeout(() => animateCounter('admin-count-regions-admin', 8, ''), 500);
-    setTimeout(() => animateCounter('admin-count-pays', 12, '+'), 600);
-    loadAdminList();
+
+    const isAdmin = window.checkIsAdmin ? await window.checkIsAdmin(user.uid) : false;
+    document.getElementById('adminLogin').style.display = 'none';
+
+    if (isAdmin) {
+      document.getElementById('adminDash').style.display = 'block';
+      // Animate stats
+      setTimeout(() => animateCounter('admin-count-entreprises', 55, '+'), 200);
+      setTimeout(() => animateCounter('admin-count-secteurs', 9, ''), 300);
+      setTimeout(() => animateCounter('admin-count-regions-nat', 4, ''), 400);
+      setTimeout(() => animateCounter('admin-count-regions-admin', 8, ''), 500);
+      setTimeout(() => animateCounter('admin-count-pays', 12, '+'), 600);
+      loadAdminList();
+      loadDemandesList();
+    } else {
+      document.getElementById('entrepriseDash').style.display = 'block';
+      loadEntrepriseDash(user.uid);
+    }
   } catch(err) {
     errEl.style.display = 'block';
     console.error('Firebase Auth error:', err.code, err.message);
@@ -3068,7 +3175,7 @@ function togglePassword() {
 }
 
 function switchTab(tab) {
-  const tabs = ['add', 'list', 'produit'];
+  const tabs = ['add', 'list', 'produit', 'demandes'];
   tabs.forEach(t => {
     const panel = document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1));
     if (panel) panel.style.display = t === tab ? 'block' : 'none';
@@ -3080,6 +3187,7 @@ function switchTab(tab) {
   });
   if (tab === 'list') loadAdminList();
   if (tab === 'produit') populateVendeurSelect();
+  if (tab === 'demandes') loadDemandesList();
 }
 
 async function adminAddEntreprise() {
@@ -3123,7 +3231,15 @@ async function adminAddEntreprise() {
   const adresses = getAdresses();
   const regionNat   = document.getElementById('a-region-nat')?.value || '';
   const regionAdmin = document.getElementById('a-region-admin')?.value || '';
-  const data = { nom, responsable: resp, secteur, tag, ville, regionNat, regionAdmin, wa, email, emoji, desc, logo, adresses, dateAjout: new Date().toLocaleDateString('fr-FR') };
+
+  // Si un email est renseigné, crée le compte entreprise + envoie l'invitation à définir un mot de passe
+  let ownerUid = '';
+  if (email && window.createEntrepriseAccount) {
+    btn.textContent = '⏳ Création du compte entreprise...';
+    ownerUid = await window.createEntrepriseAccount(email) || '';
+  }
+
+  const data = { nom, responsable: resp, secteur, tag, ville, regionNat, regionAdmin, wa, email, emoji, desc, logo, adresses, ownerUid, dateAjout: new Date().toLocaleDateString('fr-FR') };
 
   try {
     if (window.addEntrepriseToFirestore) {
@@ -3136,7 +3252,9 @@ async function adminAddEntreprise() {
     const msg = document.getElementById('adminMsg');
     msg.style.display = 'block';
     msg.style.color = '#27500A';
-    msg.textContent = '✅ ' + nom + ' ajoutée avec succès dans Firebase !';
+    msg.textContent = ownerUid
+      ? '✅ ' + nom + ' ajoutée ! Un email a été envoyé à ' + email + ' pour définir son mot de passe.'
+      : '✅ ' + nom + ' ajoutée avec succès dans Firebase !';
 
     // Reset form
     ['a-nom','a-responsable','a-ville','a-wa','a-email','a-emoji','a-desc','a-logo'].forEach(id => document.getElementById(id).value = '');
@@ -3907,6 +4025,177 @@ async function loadAdminList() {
   }
 }
 
+// ── DEMANDES D'INSCRIPTION ────────────────────────────────────────────────────
+async function loadDemandesList() {
+  const listEl  = document.getElementById('demandesList');
+  const badgeEl = document.getElementById('demandes-badge');
+  if (!listEl) return;
+  listEl.innerHTML = '<p style="color:#888;font-size:13px;">Chargement...</p>';
+
+  if (!window.getPendingInscriptions) {
+    listEl.innerHTML = '<p style="color:#888;">Connectez-vous à Firebase pour voir les demandes.</p>';
+    return;
+  }
+
+  try {
+    const data = await window.getPendingInscriptions();
+    if (badgeEl) {
+      badgeEl.textContent = data.length;
+      badgeEl.style.display = data.length > 0 ? 'inline-block' : 'none';
+    }
+    if (!data.length) {
+      listEl.innerHTML = '<p style="color:#888;">Aucune demande en attente pour le moment.</p>';
+      return;
+    }
+    listEl.innerHTML = data.map(d => `
+      <div id="demande-${d.id}" style="background:#fff;border-radius:8px;padding:16px;margin-bottom:12px;border:1px solid #eee;">
+        <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:8px;">
+          <div>
+            <div style="font-weight:700;font-size:14px;color:#111;">${d.nom || '(sans nom)'}</div>
+            <div style="font-size:11px;color:#888;margin-top:2px;">${d.secteur || ''} · ${d.ville || ''}</div>
+          </div>
+          <span style="font-size:10px;color:#888;white-space:nowrap;">${d.date || ''}</span>
+        </div>
+        <div style="font-size:12px;color:#555;margin-bottom:6px;">${d.description || ''}</div>
+        <div style="font-size:11px;color:#888;margin-bottom:12px;">
+          👤 ${d.responsable || '—'} · 📱 ${d.whatsapp || '—'} · ✉️ ${d.email || '—'}
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="validerDemande('${d.id}')"
+            style="flex:1;padding:9px;background:#2E7D46;color:#fff;border:none;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:700;cursor:pointer;">
+            ✓ Valider
+          </button>
+          <button onclick="refuserDemande('${d.id}')"
+            style="flex:1;padding:9px;background:#fff;color:#A32D2D;border:1.5px solid #A32D2D;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:700;cursor:pointer;">
+            ✕ Refuser
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    // Stocke les données brutes pour la validation
+    window._demandesCache = {};
+    data.forEach(d => window._demandesCache[d.id] = d);
+  } catch(err) {
+    listEl.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
+  }
+}
+
+async function validerDemande(id) {
+  const el = document.getElementById('demande-' + id);
+  if (el) el.style.opacity = '0.5';
+  try {
+    const inscription = window._demandesCache[id];
+    await window.validerInscriptionFirestore(id, inscription);
+    if (el) el.remove();
+    loadAdminList();
+    setTimeout(() => animateCounter('admin-count-entreprises', 56, '+'), 100);
+  } catch(err) {
+    alert('Erreur lors de la validation. Réessayez.');
+    if (el) el.style.opacity = '1';
+  }
+}
+
+async function refuserDemande(id) {
+  if (!confirm('Refuser cette demande d\'inscription ?')) return;
+  const el = document.getElementById('demande-' + id);
+  if (el) el.style.opacity = '0.5';
+  try {
+    await window.refuserInscriptionFirestore(id);
+    if (el) el.remove();
+  } catch(err) {
+    alert('Erreur. Réessayez.');
+    if (el) el.style.opacity = '1';
+  }
+}
+
+// ── ESPACE ENTREPRISE (self-service) ──────────────────────────────────────────
+async function loadEntrepriseDash(uid) {
+  const el = document.getElementById('entrepriseDashContent');
+  el.innerHTML = 'Chargement de votre fiche...';
+
+  if (!window.getMyEntrepriseFirestore) {
+    el.innerHTML = '<p style="color:#888;">Service indisponible pour le moment.</p>';
+    return;
+  }
+
+  try {
+    const ent = await window.getMyEntrepriseFirestore(uid);
+    if (!ent) {
+      el.innerHTML = `
+        <div style="text-align:center;padding:20px;">
+          <div style="font-size:32px;margin-bottom:12px;">🏢</div>
+          <div style="font-weight:700;color:#111;margin-bottom:6px;">Aucune fiche associée à ce compte</div>
+          <div style="font-size:12px;color:#888;">Contactez VISUUUM 224 si vous pensez qu'il s'agit d'une erreur.</div>
+        </div>`;
+      return;
+    }
+    window._myEntreprise = ent;
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px;">
+        <span style="font-size:32px;">${ent.emoji || '🏢'}</span>
+        <div>
+          <div style="font-family:'Bebas Neue';font-size:22px;color:#111;letter-spacing:1px;">${ent.nom}</div>
+          <div style="font-size:11px;color:#888;">${ent.secteur} · ${ent.ville}</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">DESCRIPTION</label>
+        <textarea id="me-desc" style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;resize:vertical;min-height:80px;">${ent.desc || ''}</textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">WHATSAPP</label>
+          <input id="me-wa" type="tel" value="${ent.wa || ''}"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">EMAIL</label>
+          <input id="me-email" type="email" value="${ent.email || ''}"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+      </div>
+
+      <button onclick="saveMyEntreprise()"
+        style="width:100%;padding:13px;background:#E8622A;color:#fff;border:none;border-radius:8px;font-family:'Syne';font-size:14px;font-weight:700;cursor:pointer;">
+        ✦ Enregistrer les modifications
+      </button>
+      <p id="me-msg" style="text-align:center;font-size:13px;margin-top:14px;display:none;"></p>
+
+      <div style="margin-top:24px;padding-top:20px;border-top:1px solid #eee;font-size:11px;color:#aaa;text-align:center;">
+        Pour ajouter des produits, modifier vos adresses ou votre logo,<br>contactez l'équipe VISUUUM 224 — bientôt disponible directement ici.
+      </div>
+    `;
+  } catch(err) {
+    el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement de votre fiche.</p>';
+  }
+}
+
+async function saveMyEntreprise() {
+  const ent = window._myEntreprise;
+  const msgEl = document.getElementById('me-msg');
+  if (!ent) return;
+
+  const data = {
+    desc:  document.getElementById('me-desc').value.trim(),
+    wa:    document.getElementById('me-wa').value.trim(),
+    email: document.getElementById('me-email').value.trim(),
+  };
+
+  try {
+    await window.updateEntrepriseFirestore(ent.id, data);
+    msgEl.style.display = 'block';
+    msgEl.style.color = '#2E7D46';
+    msgEl.textContent = '✓ Fiche mise à jour avec succès !';
+  } catch(err) {
+    msgEl.style.display = 'block';
+    msgEl.style.color = '#A32D2D';
+    msgEl.textContent = '❌ Erreur lors de la sauvegarde. Réessayez.';
+  }
+}
+
 // Close on Escape
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAdmin(); });
 
@@ -4057,6 +4346,11 @@ function trackRecherche(terme) {
       <button class="admin-tab" id="tab-produit" onclick="switchTab('produit')"
         style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
         🛍️ Produits
+      </button>
+
+      <button class="admin-tab" id="tab-demandes" onclick="switchTab('demandes')"
+        style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888; position:relative;">
+        📥 Demandes <span id="demandes-badge" style="display:none; background:#E24B4A; color:#fff; font-size:9px; font-weight:700; padding:1px 6px; border-radius:10px; margin-left:4px;">0</span>
       </button>
     </div>
 
@@ -4479,7 +4773,27 @@ function trackRecherche(terme) {
       </div>
     </div>
 
+    <!-- Tab DEMANDES -->
+    <div id="panelDemandes" style="padding:28px; display:none;">
+      <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:6px;">Demandes d'inscription en attente</div>
+      <div style="font-size:12px; color:#888; margin-bottom:20px;">Validez ou refusez les entreprises inscrites via le formulaire public. La validation crée automatiquement leur compte et leur envoie un email pour définir leur mot de passe.</div>
+      <div id="demandesList" style="font-size:13px; color:#888;">Chargement...</div>
+    </div>
 
+  </div>
+
+  <!-- ── ESPACE ENTREPRISE (connexion non-admin) ── -->
+  <div id="entrepriseDash" style="display:none; background:#F5F4F0; border-radius:16px; width:100%; max-width:640px; max-height:90vh; overflow-y:auto;">
+    <div style="background:#111; padding:20px 28px; border-radius:16px 16px 0 0; display:flex; align-items:center; justify-content:space-between;">
+      <div>
+        <div style="font-family:'Bebas Neue'; font-size:26px; color:#E8622A; letter-spacing:2px;">VISUUUM 224</div>
+        <div style="font-size:11px; color:rgba(255,255,255,.4); letter-spacing:.12em;">Espace Entreprise</div>
+      </div>
+      <button onclick="closeAdmin()" style="background:rgba(255,255,255,.1); border:none; color:#fff; width:34px; height:34px; border-radius:50%; font-size:16px; cursor:pointer;">✕</button>
+    </div>
+    <div id="entrepriseDashContent" style="padding:28px;">
+      Chargement de votre fiche...
+    </div>
   </div>
 </div>
 
