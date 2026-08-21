@@ -452,6 +452,10 @@ section { padding: 96px 6vw; width: 100%; }
   height: 160px; background: rgba(232,98,42,.06);
   display: flex; align-items: center; justify-content: center;
   font-size: 48px; position: relative;
+  overflow: hidden;
+}
+.produit-img img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
 }
 .produit-img-footer {
   position: absolute;
@@ -861,12 +865,13 @@ section { padding: 96px 6vw; width: 100%; }
 .modal-produit-btn-wa:hover { background: #1da851; }
 .modal-produit-btn-voir {
   flex: 1; min-width: 140px; padding: 13px 20px;
-  background: var(--bg); color: var(--text); border: 1.5px solid var(--border2);
+  background: #111; color: #fff; border: 1.5px solid #111;
   border-radius: 6px; font-family: 'Syne'; font-size: 13px;
   font-weight: 700; cursor: pointer; transition: all .2s;
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
-.modal-produit-btn-voir:hover { border-color: var(--orange); color: var(--orange); }
+.modal-produit-btn-voir:hover { background: var(--orange); border-color: var(--orange); }
+.modal-produit-btn-voir:active { background: #c9541f; }
 
 /* ── NIMBA'REP LABEL ── */
 .nimba-rep {
@@ -4019,9 +4024,9 @@ function openProduitModal(tab, idx) {
     thumbsEl.innerHTML = '';
   }
 
-  // Badge catégorie
-  const cats = { produits: 'Produit local', services: 'Service', artisanat: 'Artisanat' };
-  document.getElementById('pm-badge').textContent = cats[tab] || tab;
+  // Badge origine (Local / Importé) — cohérent avec les cartes de la grille
+  const isImporte = (p.origine || 'local') === 'importé';
+  document.getElementById('pm-badge').textContent = isImporte ? '✈️ Importé' : '🇬🇳 Produit local';
 
   // Région
   document.getElementById('pm-region').textContent = '📍 ' + (p.region || '');
