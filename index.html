@@ -2884,7 +2884,9 @@ function renderPPage() {
   document.getElementById('produitsGrid').innerHTML = pageItems.map(p => {
     const waClean = (p.wa||'').replace(/[^0-9+]/g,'');
     const origineBadge = `<span class="produit-origine ${(p.origine||'local')==='importé'?'importé':'local'}">${(p.origine||'local')==='importé'?'✈️ Importé':'🇬🇳 Local'}</span>`;
-    const regionBadge = p.region ? `<span class="produit-region">📍 ${p.region}</span>` : '';
+    const vendeurEnt = entreprises.find(e => e.nom === p.vendeur);
+    const regionValue = p.region || (vendeurEnt ? vendeurEnt.ville : '');
+    const regionBadge = regionValue ? `<span class="produit-region">📍 ${regionValue}</span>` : '';
     const imgFooter = `<div class="produit-img-footer">${regionBadge}${origineBadge}</div>`;
     const imgHtml = p.image
       ? `<img src="${p.image}" alt="${p.nom}" loading="lazy">${imgFooter}`
@@ -4029,7 +4031,8 @@ function openProduitModal(tab, idx) {
   document.getElementById('pm-badge').textContent = isImporte ? '✈️ Importé' : '🇬🇳 Produit local';
 
   // Région
-  document.getElementById('pm-region').textContent = '📍 ' + (p.region || '');
+  const modalVendeurEnt = entreprises.find(e => e.nom === p.vendeur);
+  document.getElementById('pm-region').textContent = '📍 ' + (p.region || (modalVendeurEnt ? modalVendeurEnt.ville : ''));
 
   // Nom & Prix
   document.getElementById('pm-nom').textContent = p.nom;
