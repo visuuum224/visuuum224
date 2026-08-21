@@ -548,8 +548,8 @@ section { padding: 96px 6vw; width: 100%; }
 }
 .form-group { margin-bottom: 20px; }
 .form-label {
-  display: block; font-size: 11px; font-weight: 700;
-  letter-spacing: .12em; color: rgba(255,255,255,.4);
+  display: block; font-size: 10px; font-weight: 700;
+  letter-spacing: .12em; color: #888;
   margin-bottom: 8px; text-transform: uppercase;
 }
 .form-input, .form-select, .form-textarea {
@@ -562,7 +562,14 @@ section { padding: 96px 6vw; width: 100%; }
 }
 .form-input::placeholder, .form-textarea::placeholder { color: #bbb; }
 .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--orange); }
-.form-select { cursor: pointer; appearance: none; }
+.form-select {
+  cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 16px;
+  padding-right: 44px;
+}
 .form-select option { background: #fff; color: #111; }
 .form-textarea { resize: vertical; min-height: 100px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -687,8 +694,9 @@ section { padding: 96px 6vw; width: 100%; }
 }
 .modal-btn-wa { background: #25D366; color: #fff; }
 .modal-btn-wa:hover { background: #1da851; }
-.modal-btn-mail { background: var(--bg); color: var(--text); border: 1.5px solid var(--border2); }
-.modal-btn-mail:hover { border-color: var(--orange); color: var(--orange); }
+.modal-btn-mail { background: #111; color: #fff; border: 1.5px solid #111; }
+.modal-btn-mail:hover { background: var(--orange); border-color: var(--orange); }
+.modal-btn-mail:active { background: #c9541f; }
 
 /* Update card cursor */
 .entreprise-card { cursor: pointer; }
@@ -1676,7 +1684,7 @@ footer {
       <div class="form-group">
         <label class="form-label">Secteur d'activité *</label>
         <select class="form-select form-input" id="f-secteur">
-          <option value="">Choisissez votre secteur...</option>
+          <option value="">Choisir ...</option>
           <option>Agriculture / Agroalimentaire</option>
           <option>Commerce / Vente</option>
           <option>Artisanat / Mode</option>
@@ -1711,7 +1719,7 @@ footer {
         <div class="form-group">
           <label class="form-label">Région naturelle</label>
           <select class="form-select form-input" id="f-region-nat" onchange="filterRegionAdmin()">
-            <option value="">Choisir R. Na</option>
+            <option value="">Choisir ...</option>
             <option value="Guinée Maritime">🌊 Guinée Maritime</option>
             <option value="Fouta Djallon">⛰️ Fouta Djallon</option>
             <option value="Haute Guinée">🌾 Haute Guinée</option>
@@ -1721,7 +1729,7 @@ footer {
         <div class="form-group">
           <label class="form-label">Région administrative</label>
           <select class="form-select form-input" id="f-region-admin">
-            <option value="">Choisir R. Ad</option>
+            <option value="">Choisir ...</option>
             <optgroup label="🌊 Guinée Maritime" data-region-nat="Guinée Maritime">
               <option value="Conakry">Conakry</option>
               <option value="Kindia">Kindia</option>
@@ -3392,7 +3400,7 @@ async function adminAddEntreprise() {
     const alreadyUsed = await window.checkEmailAlreadyUsed(email);
     if (alreadyUsed) {
       alert('⚠️ Cet email est déjà utilisé par une autre entreprise inscrite.');
-      btn.textContent = '✦ Enregistrer dans Firebase';
+      btn.textContent = '✦ Enregistrer';
       btn.disabled = false;
       return;
     }
@@ -3443,7 +3451,7 @@ async function adminAddEntreprise() {
     msg.style.color = '#27500A';
     msg.textContent = ownerUid
       ? '✅ ' + nom + ' ajoutée ! Un email a été envoyé à ' + email + ' pour définir son mot de passe.'
-      : '✅ ' + nom + ' ajoutée avec succès dans Firebase !';
+      : '✅ ' + nom + ' ajoutée avec succès !';
 
     // Reset form
     ['a-nom','a-responsable','a-ville','a-wa','a-email','a-emoji','a-desc','a-logo'].forEach(id => document.getElementById(id).value = '');
@@ -3460,7 +3468,7 @@ async function adminAddEntreprise() {
     msg.textContent = '❌ Erreur : ' + err.message;
   }
 
-  btn.textContent = '✦ Enregistrer dans Firebase';
+  btn.textContent = '✦ Enregistrer';
   btn.disabled = false;
 }
 
@@ -4239,6 +4247,15 @@ async function supprimerEntreprise(id, nom) {
 }
 
 // ── DEMANDES D'INSCRIPTION ────────────────────────────────────────────────────
+function toggleDemande(id) {
+  const details = document.getElementById('demande-details-' + id);
+  const chevron = document.getElementById('demande-chevron-' + id);
+  if (!details) return;
+  const isOpen = details.style.display === 'block';
+  details.style.display = isOpen ? 'none' : 'block';
+  if (chevron) chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
 async function loadDemandesList() {
   const listEl  = document.getElementById('demandesList');
   const badgeEl = document.getElementById('demandes-badge');
@@ -4261,34 +4278,90 @@ async function loadDemandesList() {
       return;
     }
     listEl.innerHTML = data.map(d => `
-      <div id="demande-${d.id}" style="background:#fff;border-radius:8px;padding:16px;margin-bottom:12px;border:1px solid #eee;">
-        <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:8px;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            ${d.logo ? `<img src="${d.logo}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover;border:1px solid #eee;">` : ''}
-            <div>
-              <div style="font-weight:700;font-size:14px;color:#111;">${d.nom || '(sans nom)'}</div>
+      <div id="demande-${d.id}" style="background:#fff;border-radius:8px;margin-bottom:12px;border:1px solid #eee;overflow:hidden;">
+        <div onclick="toggleDemande('${d.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+            ${d.logo ? `<img src="${d.logo}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover;border:1px solid #eee;flex-shrink:0;">` : '<span style="font-size:22px;">🏢</span>'}
+            <div style="min-width:0;">
+              <div style="font-weight:700;font-size:14px;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.nom || '(sans nom)'}</div>
               <div style="font-size:11px;color:#888;margin-top:2px;">${d.secteur || ''} · ${d.ville || ''}</div>
             </div>
           </div>
-          <span style="font-size:10px;color:#888;white-space:nowrap;">${d.date || ''}</span>
+          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+            <span style="font-size:10px;color:#888;white-space:nowrap;">${d.date || ''}</span>
+            <span id="demande-chevron-${d.id}" style="font-size:12px;color:#888;transition:transform .2s;display:inline-block;">▼</span>
+          </div>
         </div>
-        <div style="font-size:12px;color:#555;margin-bottom:6px;">${d.description || ''}</div>
-        ${d.produits && d.produits.length ? `
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
-          ${d.produits.map(p => `<span style="font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(232,98,42,.1);color:#E8622A;">${p}</span>`).join('')}
-        </div>` : ''}
-        <div style="font-size:11px;color:#888;margin-bottom:12px;">
-          👤 ${d.responsable || '—'} · 📱 ${d.whatsapp || '—'} · ✉️ ${d.email || '—'}
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button onclick="validerDemande('${d.id}')"
-            style="flex:1;padding:9px;background:#2E7D46;color:#fff;border:none;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:700;cursor:pointer;">
-            ✓ Valider
-          </button>
-          <button onclick="refuserDemande('${d.id}')"
-            style="flex:1;padding:9px;background:#fff;color:#A32D2D;border:1.5px solid #A32D2D;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:700;cursor:pointer;">
-            ✕ Refuser
-          </button>
+
+        <div id="demande-details-${d.id}" style="display:none;padding:0 16px 16px;border-top:1px solid #f0f0f0;">
+          <div style="padding-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+            <div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;">RESPONSABLE</div>
+              <div style="font-size:13px;color:#333;">${d.responsable || '—'}</div>
+            </div>
+            <div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;">WHATSAPP</div>
+              <div style="font-size:13px;color:#333;">${d.whatsapp || '—'}</div>
+            </div>
+            <div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;">EMAIL</div>
+              <div style="font-size:13px;color:#333;word-break:break-all;">${d.email || '—'}</div>
+            </div>
+            <div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;">VILLE</div>
+              <div style="font-size:13px;color:#333;">${d.ville || '—'}</div>
+            </div>
+            <div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;">RÉGION NATURELLE</div>
+              <div style="font-size:13px;color:#333;">${d.regionNat || '—'}</div>
+            </div>
+            <div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;">RÉGION ADMIN.</div>
+              <div style="font-size:13px;color:#333;">${d.regionAdmin || '—'}</div>
+            </div>
+            <div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;">SECTEUR</div>
+              <div style="font-size:13px;color:#333;">${d.secteur || '—'}</div>
+            </div>
+            <div>
+              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;">COORDONNÉES GPS</div>
+              <div style="font-size:13px;color:#333;">
+                ${(d.lat != null && d.lng != null)
+                  ? `<a href="https://www.google.com/maps?q=${d.lat},${d.lng}" target="_blank" style="color:#E8622A;text-decoration:none;">${d.lat}, ${d.lng} ↗</a>`
+                  : '—'}
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;margin-bottom:4px;">DESCRIPTION</div>
+            <div style="font-size:13px;color:#333;">${d.description || '—'}</div>
+          </div>
+
+          ${d.produits && d.produits.length ? `
+          <div style="margin-bottom:14px;">
+            <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;margin-bottom:6px;">PRODUITS / SERVICES</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              ${d.produits.map(p => `<span style="font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(232,98,42,.1);color:#E8622A;">${p}</span>`).join('')}
+            </div>
+          </div>` : ''}
+
+          ${d.logo ? `
+          <div style="margin-bottom:14px;">
+            <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;margin-bottom:6px;">LOGO / PHOTO</div>
+            <img src="${d.logo}" alt="" style="max-width:120px;max-height:120px;border-radius:8px;border:1px solid #eee;object-fit:cover;">
+          </div>` : ''}
+
+          <div style="display:flex;gap:8px;">
+            <button onclick="event.stopPropagation();validerDemande('${d.id}')"
+              style="flex:1;padding:9px;background:#2E7D46;color:#fff;border:none;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:700;cursor:pointer;">
+              ✓ Valider
+            </button>
+            <button onclick="event.stopPropagation();refuserDemande('${d.id}')"
+              style="flex:1;padding:9px;background:#fff;color:#A32D2D;border:1.5px solid #A32D2D;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:700;cursor:pointer;">
+              ✕ Refuser
+            </button>
+          </div>
         </div>
       </div>
     `).join('');
@@ -4735,7 +4808,7 @@ function trackRecherche(terme) {
 
       <button onclick="adminAddEntreprise()"
         style="width:100%; padding:13px; background:#E8622A; color:#fff; border:none; border-radius:8px; font-family:'Syne'; font-size:14px; font-weight:700; cursor:pointer;">
-        ✦ Enregistrer dans Firebase
+        ✦ Enregistrer
       </button>
       <p id="adminMsg" style="text-align:center; font-size:13px; margin-top:14px; display:none;"></p>
 
