@@ -4639,31 +4639,120 @@ async function loadEntEntrepriseTab(uid) {
       return;
     }
     window._myEntreprise = ent;
+
+    const secteurs = ["Agriculture / Agroalimentaire","Commerce / Vente","Artisanat / Mode","BTP / Immobilier","Restauration / Food","Santé / Beauté","Transport / Logistique","Tech / Numérique","Éducation / Formation"];
+    const regionsNat = [
+      {v:"Guinée Maritime", l:"🌊 Guinée Maritime"},
+      {v:"Fouta Djallon", l:"⛰️ Fouta Djallon"},
+      {v:"Haute Guinée", l:"🌾 Haute Guinée"},
+      {v:"Guinée Forestière", l:"🌿 Guinée Forestière"}
+    ];
+    const regionsAdminByNat = {
+      "Guinée Maritime": ["Conakry","Kindia","Boké"],
+      "Fouta Djallon": ["Labé","Mamou"],
+      "Haute Guinée": ["Kankan","Faranah"],
+      "Guinée Forestière": ["N'Zérékoré"]
+    };
+    const produitsStr = (ent.produits || []).join(', ');
+    const mapsStr = (ent.lat != null && ent.lng != null) ? `${ent.lat}, ${ent.lng}` : '';
+
     el.innerHTML = `
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px;">
-        <span style="font-size:32px;">${ent.emoji || '🏢'}</span>
+        ${ent.logo ? `<img src="${ent.logo}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;">` : `<span style="font-size:32px;">${ent.emoji || '🏢'}</span>`}
         <div>
           <div style="font-family:'Bebas Neue';font-size:22px;color:#111;letter-spacing:1px;">${ent.nom}</div>
           <div style="font-size:11px;color:#888;">${ent.secteur} · ${ent.ville}</div>
         </div>
       </div>
 
-      <div style="margin-bottom:16px;">
-        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">DESCRIPTION</label>
-        <textarea id="me-desc" style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;resize:vertical;min-height:80px;">${ent.desc || ''}</textarea>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">NOM DE L'ENTREPRISE</label>
+          <input id="me-nom" type="text" value="${ent.nom || ''}"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">RESPONSABLE</label>
+          <input id="me-responsable" type="text" value="${ent.responsable || ''}"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">VILLE / QUARTIER</label>
+          <input id="me-ville" type="text" value="${ent.ville || ''}"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
         <div>
           <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">WHATSAPP</label>
           <input id="me-wa" type="tel" value="${ent.wa || ''}"
             style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
         </div>
-        <div>
-          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">EMAIL</label>
-          <input id="me-email" type="email" value="${ent.email || ''}"
-            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">SECTEUR D'ACTIVITÉ</label>
+        <select id="me-secteur"
+          style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;background:#fff;">
+          ${secteurs.map(s => `<option value="${s}" ${ent.secteur === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">DESCRIPTION</label>
+        <textarea id="me-desc" style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;resize:vertical;min-height:80px;">${ent.desc || ''}</textarea>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">PRODUITS / SERVICES PROPOSÉS</label>
+        <input id="me-produits" type="text" value="${produitsStr}" placeholder="Séparés par des virgules"
+          style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">LOGO / PHOTO</label>
+        <input type="file" id="me-logo-file" accept="image/*" style="display:none;" onchange="previewMeLogo(this)">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button type="button" onclick="document.getElementById('me-logo-file').click()"
+            style="padding:9px 18px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:600;color:#555;cursor:pointer;">📤 Changer l'image</button>
+          <div id="me-logo-preview" style="display:${ent.logo ? 'flex' : 'none'};align-items:center;gap:8px;">
+            <img id="me-logo-img" src="${ent.logo || ''}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid #ddd;">
+          </div>
         </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">RÉGION NATURELLE</label>
+          <select id="me-region-nat" onchange="filterMeRegionAdmin()"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;background:#fff;">
+            <option value="">Choisir ...</option>
+            ${regionsNat.map(r => `<option value="${r.v}" ${ent.regionNat === r.v ? 'selected' : ''}>${r.l}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">RÉGION ADMINISTRATIVE</label>
+          <select id="me-region-admin"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;background:#fff;">
+            <option value="">Choisir ...</option>
+            ${Object.entries(regionsAdminByNat).flatMap(([nat, villes]) =>
+              villes.map(v => `<option value="${v}" data-nat="${nat}" ${ent.regionAdmin === v ? 'selected' : ''}>${v}</option>`)
+            ).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">POSITION SUR GOOGLE MAPS</label>
+        <input id="me-maps-link" type="text" value="${mapsStr}" placeholder="Ex : 48.860021, 2.519267 — ou un lien Google Maps"
+          style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">EMAIL</label>
+        <input id="me-email" type="email" value="${ent.email || ''}"
+          style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
       </div>
 
       <button onclick="saveMyEntreprise()"
@@ -4673,12 +4762,38 @@ async function loadEntEntrepriseTab(uid) {
       <p id="me-msg" style="text-align:center;font-size:13px;margin-top:14px;display:none;"></p>
 
       <div style="margin-top:24px;padding-top:20px;border-top:1px solid #eee;font-size:11px;color:#aaa;text-align:center;">
-        Pour modifier vos adresses ou votre logo, contactez l'équipe VISUUUM 224 — bientôt disponible directement ici.
+        Pour ajouter plusieurs adresses (siège + agences), contactez l'équipe VISUUUM 224.
       </div>
     `;
+
+    filterMeRegionAdmin();
   } catch(err) {
     el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement de votre fiche.</p>';
   }
+}
+
+function filterMeRegionAdmin() {
+  const regionNat = document.getElementById('me-region-nat').value;
+  const adminSelect = document.getElementById('me-region-admin');
+  const currentValue = adminSelect.value;
+  Array.from(adminSelect.options).forEach(opt => {
+    if (!opt.value) { opt.hidden = false; return; }
+    const matches = !regionNat || opt.getAttribute('data-nat') === regionNat;
+    opt.hidden = !matches;
+  });
+  const selectedOpt = adminSelect.selectedOptions[0];
+  if (selectedOpt && selectedOpt.hidden) {
+    adminSelect.value = '';
+  }
+}
+
+function previewMeLogo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const preview = document.getElementById('me-logo-preview');
+  const img = document.getElementById('me-logo-img');
+  img.src = URL.createObjectURL(file);
+  preview.style.display = 'flex';
 }
 
 async function saveMyEntreprise() {
@@ -4686,19 +4801,47 @@ async function saveMyEntreprise() {
   const msgEl = document.getElementById('me-msg');
   if (!ent) return;
 
+  msgEl.style.display = 'block';
+  msgEl.style.color = '#888';
+  msgEl.textContent = '⏳ Enregistrement...';
+
+  const produits = document.getElementById('me-produits').value
+    .split(',').map(p => p.trim()).filter(p => p.length > 0);
+
+  const mapsLink = document.getElementById('me-maps-link').value.trim();
+  const coords = extractCoordsFromMapsLink(mapsLink);
+
   const data = {
-    desc:  document.getElementById('me-desc').value.trim(),
-    wa:    document.getElementById('me-wa').value.trim(),
-    email: document.getElementById('me-email').value.trim(),
+    nom:         document.getElementById('me-nom').value.trim(),
+    responsable: document.getElementById('me-responsable').value.trim(),
+    ville:       document.getElementById('me-ville').value.trim(),
+    wa:          document.getElementById('me-wa').value.trim(),
+    secteur:     document.getElementById('me-secteur').value,
+    desc:        document.getElementById('me-desc').value.trim(),
+    produits,
+    regionNat:   document.getElementById('me-region-nat').value,
+    regionAdmin: document.getElementById('me-region-admin').value,
+    lat: coords ? coords.lat : (ent.lat != null ? ent.lat : null),
+    lng: coords ? coords.lng : (ent.lng != null ? ent.lng : null),
+    email:       document.getElementById('me-email').value.trim(),
   };
+
+  // Upload d'un nouveau logo si un fichier a été choisi
+  const logoFileInput = document.getElementById('me-logo-file');
+  if (logoFileInput.files.length > 0) {
+    try {
+      data.logo = await uploadToImgbb(logoFileInput.files[0]);
+    } catch(err) {
+      console.warn('Upload logo échoué:', err);
+    }
+  }
 
   try {
     await window.updateEntrepriseFirestore(ent.id, data);
-    msgEl.style.display = 'block';
     msgEl.style.color = '#2E7D46';
     msgEl.textContent = '✓ Fiche mise à jour avec succès !';
+    setTimeout(() => loadEntEntrepriseTab(window._entUid), 1000);
   } catch(err) {
-    msgEl.style.display = 'block';
     msgEl.style.color = '#A32D2D';
     msgEl.textContent = '❌ Erreur lors de la sauvegarde. Réessayez.';
   }
