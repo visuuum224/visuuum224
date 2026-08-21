@@ -1187,6 +1187,21 @@ footer {
     }
   }
 
+  // ── Charger les produits depuis Firestore (admin + entreprises) ──
+  async function loadProduitsFromFirebase() {
+    try {
+      const snap = await getDocs(collection(db, "produits"));
+      if (snap.empty) return;
+      const firebaseData = [];
+      snap.forEach(d => firebaseData.push({ id: d.id, ...d.data() }));
+      window.produitsFirebase = firebaseData;
+      console.log(`✓ ${firebaseData.length} produits chargés depuis Firebase`);
+      if (window.refreshProduits) window.refreshProduits(firebaseData);
+    } catch(err) {
+      console.warn("Chargement produits Firebase échoué:", err);
+    }
+  }
+
   // ── Envoyer inscription formulaire vers Firestore (en attente de validation) ──
   window.sendToFirestore = async function(data) {
     try {
@@ -1345,7 +1360,10 @@ footer {
   };
 
   // Lancer au chargement
-  document.addEventListener('DOMContentLoaded', loadEntreprisesFromFirebase);
+  document.addEventListener('DOMContentLoaded', () => {
+    loadEntreprisesFromFirebase();
+    loadProduitsFromFirebase();
+  });
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2410,6 +2428,14 @@ window.refreshEntreprises = function(firebaseData) {
   renderEntreprises();
   // Update counter
   document.getElementById('c1').textContent = entreprises.length + '+';
+};
+
+window.refreshProduits = function(firebaseData) {
+  firebaseData.forEach(fb => {
+    const exists = produits.produits.find(p => p.id === fb.id || (p.nom === fb.nom && p.vendeur === fb.vendeur));
+    if (!exists) produits.produits.unshift(fb);
+  });
+  if (typeof renderProduits === 'function') renderProduits();
 };
 
 function renderEntreprises() {
@@ -4875,6 +4901,9 @@ async function loadEntMarcheTab(uid) {
                 <div style="font-weight:700;font-size:13px;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.nom}</div>
                 <div style="font-size:11px;color:#888;">${p.categorie || ''} ${p.prix ? '· ' + p.prix : ''}</div>
               </div>
+              <button onclick="editMyProduitHandler('${p.id}')" title="Modifier"
+                style="background:none;border:none;color:#ccc;cursor:pointer;font-size:15px;padding:4px 6px;"
+                onmouseover="this.style.color='#E8622A'" onmouseout="this.style.color='#ccc'">✏️</button>
               <button onclick="deleteMyProduitHandler('${p.id}')" title="Supprimer"
                 style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;"
                 onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>
@@ -4945,17 +4974,42 @@ async function loadEntMarcheTab(uid) {
   }
 }
 
+window._editingProduitId = null;
+
 function toggleAddProduitForm() {
   const form = document.getElementById('mp-add-form');
   const isOpen = form.style.display === 'block';
   form.style.display = isOpen ? 'none' : 'block';
   if (!isOpen) {
+    window._editingProduitId = null;
     ['mprod-nom','mprod-categorie','mprod-prix','mprod-desc'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('mprod-file1').value = '';
     document.getElementById('mprod-file2').value = '';
     document.getElementById('mprod-slot1').innerHTML = '📷';
     document.getElementById('mprod-slot2').innerHTML = '📷';
+    document.querySelector('#mp-add-form button[onclick="saveMyProduitHandler()"]').textContent = '✦ Publier ce produit';
   }
+}
+
+function editMyProduitHandler(id) {
+  const p = (window._mesProduits || []).find(pr => pr.id === id);
+  if (!p) return;
+
+  window._editingProduitId = id;
+  const form = document.getElementById('mp-add-form');
+  form.style.display = 'block';
+
+  document.getElementById('mprod-nom').value = p.nom || '';
+  document.getElementById('mprod-categorie').value = p.categorie || '';
+  document.getElementById('mprod-prix').value = p.prix || '';
+  document.getElementById('mprod-desc').value = p.desc || '';
+  document.getElementById('mprod-file1').value = '';
+  document.getElementById('mprod-file2').value = '';
+  document.getElementById('mprod-slot1').innerHTML = p.image ? `<img src="${p.image}" style="width:100%;height:100%;object-fit:cover;">` : '📷';
+  document.getElementById('mprod-slot2').innerHTML = p.image2 ? `<img src="${p.image2}" style="width:100%;height:100%;object-fit:cover;">` : '📷';
+  document.querySelector('#mp-add-form button[onclick="saveMyProduitHandler()"]').textContent = '✦ Enregistrer les modifications';
+
+  form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function previewMyProduitPhoto(input, slot) {
@@ -4982,7 +5036,11 @@ async function saveMyProduitHandler() {
   msgEl.style.color = '#888';
   msgEl.textContent = '⏳ Enregistrement...';
 
-  let image = '', image2 = '';
+  const editingId = window._editingProduitId;
+  const existing = editingId ? (window._mesProduits || []).find(p => p.id === editingId) : null;
+
+  let image = existing ? (existing.image || '') : '';
+  let image2 = existing ? (existing.image2 || '') : '';
   try {
     const f1 = document.getElementById('mprod-file1').files[0];
     const f2 = document.getElementById('mprod-file2').files[0];
@@ -5001,14 +5059,24 @@ async function saveMyProduitHandler() {
     vendeur: ent ? ent.nom : '',
     wa: ent ? ent.wa : '',
     emoji: ent ? ent.emoji : '🛍️',
+    region: ent ? ent.ville : '',
+    regionNat: ent ? ent.regionNat : '',
+    regionAdmin: ent ? ent.regionAdmin : '',
     ownerUid: uid,
-    dateAjout: new Date().toLocaleDateString('fr-FR')
+    dateAjout: existing ? (existing.dateAjout || new Date().toLocaleDateString('fr-FR')) : new Date().toLocaleDateString('fr-FR')
   };
 
   try {
-    await window.addMyProduit(data);
-    msgEl.style.color = '#2E7D46';
-    msgEl.textContent = '✓ Produit publié !';
+    if (editingId) {
+      await window.updateMyProduit(editingId, data);
+      msgEl.style.color = '#2E7D46';
+      msgEl.textContent = '✓ Produit mis à jour !';
+    } else {
+      await window.addMyProduit(data);
+      msgEl.style.color = '#2E7D46';
+      msgEl.textContent = '✓ Produit publié !';
+    }
+    window._editingProduitId = null;
     setTimeout(() => loadEntMarcheTab(uid), 800);
   } catch(err) {
     msgEl.style.color = '#A32D2D';
