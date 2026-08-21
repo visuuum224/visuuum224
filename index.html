@@ -1076,10 +1076,11 @@ footer {
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getFirestore, collection, getDocs, addDoc, serverTimestamp, doc, getDoc, updateDoc, deleteDoc, query, where }
+  import { getFirestore, collection, getDocs, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where }
     from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
   import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
-           createUserWithEmailAndPassword, sendPasswordResetEmail, signOut as secSignOut }
+           createUserWithEmailAndPassword, sendPasswordResetEmail, signOut as secSignOut,
+           EmailAuthProvider, reauthenticateWithCredential, updatePassword }
     from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
   const firebaseConfig = {
@@ -1106,12 +1107,14 @@ footer {
 
   // Crée un compte Firebase Auth pour une entreprise + envoie l'email "Définir mon mot de passe"
   // Retourne l'UID du compte créé, ou null en cas d'échec.
+  const passwordResetSettings = { url: 'https://visuuum224.com', handleCodeInApp: false };
+
   window.createEntrepriseAccount = async function(email) {
     if (!email) return null;
     try {
       const tempPass = genTempPassword();
       const cred = await createUserWithEmailAndPassword(secondaryAuth, email, tempPass);
-      await sendPasswordResetEmail(secondaryAuth, email);
+      await sendPasswordResetEmail(secondaryAuth, email, passwordResetSettings);
       await secSignOut(secondaryAuth);
       console.log('✓ Compte entreprise créé et email envoyé:', email);
       return cred.user.uid;
@@ -1121,7 +1124,7 @@ footer {
         // On ne peut pas récupérer son UID sans droits admin, mais on renvoie
         // quand même l'email "définir mot de passe" pour que la personne ne reste pas bloquée.
         try {
-          await sendPasswordResetEmail(secondaryAuth, email);
+          await sendPasswordResetEmail(secondaryAuth, email, passwordResetSettings);
           console.log('ℹ️ Compte déjà existant — email de mot de passe renvoyé:', email);
         } catch(e2) {
           console.warn('Renvoi email mot de passe échoué:', e2.code, e2.message);
@@ -1295,6 +1298,50 @@ footer {
 
   window.updateEntrepriseFirestore = async function(docId, data) {
     return await updateDoc(doc(db, "entreprises", docId), data);
+  };
+
+  // ── Profil personnel (Informations personnelles) ──
+  window.getMyProfil = async function(uid) {
+    try {
+      const snap = await getDoc(doc(db, "profils", uid));
+      return snap.exists() ? snap.data() : null;
+    } catch(err) {
+      return null;
+    }
+  };
+
+  window.saveMyProfil = async function(uid, data) {
+    return await setDoc(doc(db, "profils", uid), data, { merge: true });
+  };
+
+  // Change le mot de passe (nécessite de resaisir l'ancien pour la sécurité Firebase)
+  window.changeMyPassword = async function(currentPassword, newPassword) {
+    const user = auth.currentUser;
+    if (!user || !user.email) throw new Error('Aucun utilisateur connecté.');
+    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, credential);
+    await updatePassword(user, newPassword);
+  };
+
+  // ── Marché personnel (produits gérés par l'entreprise elle-même) ──
+  window.getMyProduits = async function(uid) {
+    const q = query(collection(db, "produits"), where("ownerUid", "==", uid));
+    const snap = await getDocs(q);
+    const result = [];
+    snap.forEach(d => result.push({ id: d.id, ...d.data() }));
+    return result;
+  };
+
+  window.addMyProduit = async function(data) {
+    return await addDoc(collection(db, "produits"), data);
+  };
+
+  window.updateMyProduit = async function(id, data) {
+    return await updateDoc(doc(db, "produits", id), data);
+  };
+
+  window.deleteMyProduit = async function(id) {
+    return await deleteDoc(doc(db, "produits", id));
   };
 
   // Lancer au chargement
@@ -4410,8 +4457,169 @@ async function refuserDemande(id) {
 }
 
 // ── ESPACE ENTREPRISE (self-service) ──────────────────────────────────────────
+window._entUid = null;
+
+function switchEntTab(tab) {
+  const tabs = ['profil', 'entreprise', 'marche'];
+  tabs.forEach(t => {
+    const panel = document.getElementById('entPanel' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (panel) panel.style.display = t === tab ? 'block' : 'none';
+    const btn = document.getElementById('etab-' + t);
+    if (btn) {
+      btn.style.borderBottom = t === tab ? '2px solid #E8622A' : '2px solid transparent';
+      btn.style.color = t === tab ? '#E8622A' : '#888';
+    }
+  });
+}
+
 async function loadEntrepriseDash(uid) {
-  const el = document.getElementById('entrepriseDashContent');
+  window._entUid = uid;
+  switchEntTab('profil');
+  loadEntProfilTab(uid);
+  loadEntEntrepriseTab(uid);
+  loadEntMarcheTab(uid);
+}
+
+// ── ONGLET 1 : PROFIL PERSONNEL ──
+async function loadEntProfilTab(uid) {
+  const el = document.getElementById('entPanelProfil');
+  el.innerHTML = 'Chargement...';
+
+  let profil = {};
+  try {
+    profil = (window.getMyProfil ? await window.getMyProfil(uid) : null) || {};
+  } catch(err) {}
+
+  el.innerHTML = `
+    <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:16px;">Informations personnelles</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div>
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">PRÉNOM</label>
+        <input id="mp-prenom" type="text" value="${profil.prenom || ''}"
+          style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+      </div>
+      <div>
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">NOM</label>
+        <input id="mp-nom" type="text" value="${profil.nom || ''}"
+          style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+      </div>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">TÉLÉPHONE PERSONNEL</label>
+      <input id="mp-tel" type="tel" value="${profil.telephone || ''}" placeholder="+224 6XX XXX XXX"
+        style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">ADRESSE PERSONNELLE</label>
+      <input id="mp-adresse" type="text" value="${profil.adresse || ''}" placeholder="Quartier, ville"
+        style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+    </div>
+
+    <button onclick="saveMyProfilData()"
+      style="width:100%;padding:13px;background:#E8622A;color:#fff;border:none;border-radius:8px;font-family:'Syne';font-size:14px;font-weight:700;cursor:pointer;">
+      ✦ Enregistrer mes informations
+    </button>
+    <p id="mp-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
+
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid #eee;">
+      <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:14px;">Changer mon mot de passe</div>
+
+      <div style="margin-bottom:12px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">MOT DE PASSE ACTUEL</label>
+        <input id="mp-pw-current" type="password"
+          style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">NOUVEAU MOT DE PASSE</label>
+          <input id="mp-pw-new1" type="password" placeholder="Au moins 6 caractères"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">CONFIRMER</label>
+          <input id="mp-pw-new2" type="password"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+      </div>
+
+      <button onclick="changePasswordHandler()"
+        style="width:100%;padding:13px;background:#111;color:#fff;border:none;border-radius:8px;font-family:'Syne';font-size:14px;font-weight:700;cursor:pointer;">
+        🔒 Changer mon mot de passe
+      </button>
+      <p id="mp-pw-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
+    </div>
+  `;
+}
+
+async function saveMyProfilData() {
+  const uid = window._entUid;
+  const msgEl = document.getElementById('mp-msg');
+  if (!uid) return;
+
+  const data = {
+    prenom: document.getElementById('mp-prenom').value.trim(),
+    nom: document.getElementById('mp-nom').value.trim(),
+    telephone: document.getElementById('mp-tel').value.trim(),
+    adresse: document.getElementById('mp-adresse').value.trim(),
+  };
+
+  try {
+    await window.saveMyProfil(uid, data);
+    msgEl.style.display = 'block';
+    msgEl.style.color = '#2E7D46';
+    msgEl.textContent = '✓ Informations enregistrées !';
+  } catch(err) {
+    msgEl.style.display = 'block';
+    msgEl.style.color = '#A32D2D';
+    msgEl.textContent = '❌ Erreur lors de la sauvegarde.';
+  }
+}
+
+async function changePasswordHandler() {
+  const current = document.getElementById('mp-pw-current').value;
+  const pw1 = document.getElementById('mp-pw-new1').value;
+  const pw2 = document.getElementById('mp-pw-new2').value;
+  const msgEl = document.getElementById('mp-pw-msg');
+
+  msgEl.style.display = 'block';
+
+  if (!current || !pw1 || !pw2) {
+    msgEl.style.color = '#A32D2D';
+    msgEl.textContent = 'Merci de remplir tous les champs.';
+    return;
+  }
+  if (pw1.length < 6) {
+    msgEl.style.color = '#A32D2D';
+    msgEl.textContent = 'Le nouveau mot de passe doit contenir au moins 6 caractères.';
+    return;
+  }
+  if (pw1 !== pw2) {
+    msgEl.style.color = '#A32D2D';
+    msgEl.textContent = 'Les deux mots de passe ne correspondent pas.';
+    return;
+  }
+
+  try {
+    await window.changeMyPassword(current, pw1);
+    msgEl.style.color = '#2E7D46';
+    msgEl.textContent = '✓ Mot de passe changé avec succès !';
+    document.getElementById('mp-pw-current').value = '';
+    document.getElementById('mp-pw-new1').value = '';
+    document.getElementById('mp-pw-new2').value = '';
+  } catch(err) {
+    msgEl.style.color = '#A32D2D';
+    msgEl.textContent = err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential'
+      ? 'Mot de passe actuel incorrect.'
+      : 'Erreur lors du changement de mot de passe.';
+  }
+}
+
+// ── ONGLET 2 : DONNÉES ENTREPRISE ──
+async function loadEntEntrepriseTab(uid) {
+  const el = document.getElementById('entPanelEntreprise');
   el.innerHTML = 'Chargement de votre fiche...';
 
   if (!window.getMyEntrepriseFirestore) {
@@ -4465,7 +4673,7 @@ async function loadEntrepriseDash(uid) {
       <p id="me-msg" style="text-align:center;font-size:13px;margin-top:14px;display:none;"></p>
 
       <div style="margin-top:24px;padding-top:20px;border-top:1px solid #eee;font-size:11px;color:#aaa;text-align:center;">
-        Pour ajouter des produits, modifier vos adresses ou votre logo,<br>contactez l'équipe VISUUUM 224 — bientôt disponible directement ici.
+        Pour modifier vos adresses ou votre logo, contactez l'équipe VISUUUM 224 — bientôt disponible directement ici.
       </div>
     `;
   } catch(err) {
@@ -4493,6 +4701,188 @@ async function saveMyEntreprise() {
     msgEl.style.display = 'block';
     msgEl.style.color = '#A32D2D';
     msgEl.textContent = '❌ Erreur lors de la sauvegarde. Réessayez.';
+  }
+}
+
+// ── ONGLET 3 : MARCHÉ (produits gérés par l'entreprise) ──
+async function loadEntMarcheTab(uid) {
+  const el = document.getElementById('entPanelMarche');
+  el.innerHTML = 'Chargement de vos produits...';
+
+  if (!window.getMyProduits) {
+    el.innerHTML = '<p style="color:#888;">Service indisponible pour le moment.</p>';
+    return;
+  }
+
+  try {
+    const produits = await window.getMyProduits(uid);
+    window._mesProduits = produits;
+
+    el.innerHTML = `
+      <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:6px;">Mes produits & services</div>
+      <div style="font-size:12px;color:#888;margin-bottom:18px;">Gérez vous-même les produits affichés dans le Marché VISUUUM 224. Maximum 2 photos par produit.</div>
+
+      <div id="mp-produits-list">
+        ${produits.length === 0
+          ? '<p style="font-size:12px;color:#aaa;margin-bottom:16px;">Aucun produit ajouté pour le moment.</p>'
+          : produits.map(p => `
+            <div id="mprod-${p.id}" style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:10px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
+              ${p.image ? `<img src="${p.image}" style="width:40px;height:40px;border-radius:6px;object-fit:cover;">` : `<span style="font-size:22px;">${p.emoji || '🛍️'}</span>`}
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:700;font-size:13px;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.nom}</div>
+                <div style="font-size:11px;color:#888;">${p.categorie || ''} ${p.prix ? '· ' + p.prix : ''}</div>
+              </div>
+              <button onclick="deleteMyProduitHandler('${p.id}')" title="Supprimer"
+                style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;"
+                onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>
+            </div>
+          `).join('')
+        }
+      </div>
+
+      <button onclick="toggleAddProduitForm()" id="mp-add-toggle"
+        style="width:100%;padding:12px;background:#fff;color:#E8622A;border:1.5px dashed #E8622A;border-radius:8px;font-family:'Syne';font-size:13px;font-weight:700;cursor:pointer;margin-top:6px;">
+        + Ajouter un produit
+      </button>
+
+      <div id="mp-add-form" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid #eee;">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">NOM DU PRODUIT *</label>
+          <input id="mprod-nom" type="text" placeholder="Ex : Café torréfié 500g"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;">
+          <div>
+            <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">CATÉGORIE</label>
+            <input id="mprod-categorie" type="text" placeholder="Ex : Alimentation"
+              style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">PRIX</label>
+            <input id="mprod-prix" type="text" placeholder="Ex : 50 000 GNF"
+              style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">DESCRIPTION</label>
+          <textarea id="mprod-desc" placeholder="Décrivez le produit ou service en quelques mots..."
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;resize:vertical;min-height:60px;"></textarea>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">PHOTOS (2 maximum)</label>
+          <div style="display:flex;gap:10px;">
+            <div>
+              <input type="file" id="mprod-file1" accept="image/*" style="display:none;" onchange="previewMyProduitPhoto(this,1)">
+              <div onclick="document.getElementById('mprod-file1').click()" id="mprod-slot1"
+                style="width:72px;height:72px;border:1.5px dashed #ddd;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;color:#ccc;overflow:hidden;">📷</div>
+            </div>
+            <div>
+              <input type="file" id="mprod-file2" accept="image/*" style="display:none;" onchange="previewMyProduitPhoto(this,2)">
+              <div onclick="document.getElementById('mprod-file2').click()" id="mprod-slot2"
+                style="width:72px;height:72px;border:1.5px dashed #ddd;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;color:#ccc;overflow:hidden;">📷</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <button onclick="saveMyProduitHandler()"
+            style="flex:1;padding:12px;background:#2E7D46;color:#fff;border:none;border-radius:6px;font-family:'Syne';font-size:13px;font-weight:700;cursor:pointer;">
+            ✦ Publier ce produit
+          </button>
+          <button onclick="toggleAddProduitForm()"
+            style="padding:12px 18px;background:#fff;color:#888;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;font-weight:700;cursor:pointer;">
+            Annuler
+          </button>
+        </div>
+        <p id="mprod-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
+      </div>
+    `;
+  } catch(err) {
+    el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement de vos produits.</p>';
+  }
+}
+
+function toggleAddProduitForm() {
+  const form = document.getElementById('mp-add-form');
+  const isOpen = form.style.display === 'block';
+  form.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    ['mprod-nom','mprod-categorie','mprod-prix','mprod-desc'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('mprod-file1').value = '';
+    document.getElementById('mprod-file2').value = '';
+    document.getElementById('mprod-slot1').innerHTML = '📷';
+    document.getElementById('mprod-slot2').innerHTML = '📷';
+  }
+}
+
+function previewMyProduitPhoto(input, slot) {
+  const file = input.files[0];
+  if (!file) return;
+  const slotEl = document.getElementById('mprod-slot' + slot);
+  slotEl.innerHTML = `<img src="${URL.createObjectURL(file)}" style="width:100%;height:100%;object-fit:cover;">`;
+}
+
+async function saveMyProduitHandler() {
+  const uid = window._entUid;
+  const ent = window._myEntreprise;
+  const msgEl = document.getElementById('mprod-msg');
+  const nom = document.getElementById('mprod-nom').value.trim();
+
+  if (!nom) {
+    msgEl.style.display = 'block';
+    msgEl.style.color = '#A32D2D';
+    msgEl.textContent = 'Le nom du produit est obligatoire.';
+    return;
+  }
+
+  msgEl.style.display = 'block';
+  msgEl.style.color = '#888';
+  msgEl.textContent = '⏳ Enregistrement...';
+
+  let image = '', image2 = '';
+  try {
+    const f1 = document.getElementById('mprod-file1').files[0];
+    const f2 = document.getElementById('mprod-file2').files[0];
+    if (f1) image = await uploadToImgbb(f1);
+    if (f2) image2 = await uploadToImgbb(f2);
+  } catch(err) {
+    console.warn('Upload photo produit échoué:', err);
+  }
+
+  const data = {
+    nom,
+    categorie: document.getElementById('mprod-categorie').value.trim(),
+    prix: document.getElementById('mprod-prix').value.trim(),
+    desc: document.getElementById('mprod-desc').value.trim(),
+    image, image2,
+    vendeur: ent ? ent.nom : '',
+    wa: ent ? ent.wa : '',
+    emoji: ent ? ent.emoji : '🛍️',
+    ownerUid: uid,
+    dateAjout: new Date().toLocaleDateString('fr-FR')
+  };
+
+  try {
+    await window.addMyProduit(data);
+    msgEl.style.color = '#2E7D46';
+    msgEl.textContent = '✓ Produit publié !';
+    setTimeout(() => loadEntMarcheTab(uid), 800);
+  } catch(err) {
+    msgEl.style.color = '#A32D2D';
+    msgEl.textContent = '❌ Erreur lors de la publication.';
+  }
+}
+
+async function deleteMyProduitHandler(id) {
+  if (!confirm('Supprimer définitivement ce produit ?')) return;
+  const el = document.getElementById('mprod-' + id);
+  if (el) el.style.opacity = '0.4';
+  try {
+    await window.deleteMyProduit(id);
+    if (el) el.remove();
+  } catch(err) {
+    alert('Erreur lors de la suppression.');
+    if (el) el.style.opacity = '1';
   }
 }
 
@@ -5096,9 +5486,25 @@ function trackRecherche(terme) {
       </div>
       <button onclick="closeAdmin()" style="background:rgba(255,255,255,.1); border:none; color:#fff; width:34px; height:34px; border-radius:50%; font-size:16px; cursor:pointer;">✕</button>
     </div>
-    <div id="entrepriseDashContent" style="padding:28px;">
-      Chargement de votre fiche...
+
+    <div style="display:flex; gap:0; border-bottom:1px solid #ddd; background:#fafafa;">
+      <button class="ent-tab" id="etab-profil" onclick="switchEntTab('profil')"
+        style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid #E8622A; background:#fff; color:#E8622A;">
+        👤 Mon profil
+      </button>
+      <button class="ent-tab" id="etab-entreprise" onclick="switchEntTab('entreprise')"
+        style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
+        🏢 Mon entreprise
+      </button>
+      <button class="ent-tab" id="etab-marche" onclick="switchEntTab('marche')"
+        style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
+        🛍️ Marché
+      </button>
     </div>
+
+    <div id="entPanelProfil" style="padding:28px; display:block;">Chargement...</div>
+    <div id="entPanelEntreprise" style="padding:28px; display:none;">Chargement...</div>
+    <div id="entPanelMarche" style="padding:28px; display:none;">Chargement...</div>
   </div>
 </div>
 
