@@ -3491,11 +3491,15 @@ function downloadTemplate() {
     ["tag", "✅ OUI", "Tag court pour les filtres", "Agriculture", "Agriculture | Commerce | Artisanat | BTP | Restauration | Santé | Tech | Finance | Mines | Énergie"],
     ["ville", "✅ OUI", "Ville ou quartier principal", "Conakry, Kaloum", "Texte libre"],
     ["wa", "✅ OUI", "Numéro WhatsApp avec indicatif pays", "+224 620 00 00 00", "+224XXXXXXXXX"],
+    ["desc", "✅ OUI", "Description de l'activité (2-3 phrases)", "Café arabica de haute qualité cultivé en altitude.", "Texte libre (max 300 caractères)"],
+    ["produits", "✅ OUI", "Produits / services proposés, séparés par des virgules", "Café de Macenta, Café torréfié, Livraison à domicile", "Texte libre, séparé par des virgules"],
+    ["email", "✅ OUI", "Adresse email de contact", "contact@cafe-macenta.com", "email@domaine.com"],
     ["region_nat", "⬜ OPTIONNEL", "Région naturelle de Guinée", "Guinée Maritime", "Guinée Maritime | Fouta Djallon | Haute Guinée | Guinée Forestière"],
     ["region_admin", "⬜ OPTIONNEL", "Région administrative", "Conakry", "Conakry | Kindia | Boké | Labé | Mamou | Kankan | Faranah | N'Zérékoré"],
-    ["email", "⬜ OPTIONNEL", "Adresse email de contact", "contact@cafe-macenta.com", "email@domaine.com"],
+    ["lat", "⬜ OPTIONNEL", "Latitude GPS (voir coordonnées Google Maps)", "9.5370", "Nombre décimal"],
+    ["lng", "⬜ OPTIONNEL", "Longitude GPS (voir coordonnées Google Maps)", "-13.6773", "Nombre décimal"],
+    ["logo", "⬜ OPTIONNEL", "Lien URL vers une image de logo/photo déjà hébergée en ligne", "https://exemple.com/logo.png", "URL d'image (https://...)"],
     ["emoji", "⬜ OPTIONNEL", "Emoji représentant l'activité (1 seul)", "☕", "Tout emoji"],
-    ["desc", "✅ OUI", "Description de l'activité (2-3 phrases)", "Café arabica de haute qualité cultivé en altitude.", "Texte libre (max 300 caractères)"],
   ];
   const wsGuide = XLSX.utils.aoa_to_sheet(guideData);
   wsGuide['!cols'] = [{wch:16},{wch:14},{wch:34},{wch:28},{wch:60}];
@@ -3503,11 +3507,11 @@ function downloadTemplate() {
 
   // Feuille IMPORT
   const importData = [
-    ["nom *", "responsable *", "secteur *", "tag *", "ville *", "wa *", "region_nat", "region_admin", "email", "emoji", "desc *"],
-    ["Café Macenta SARL", "Mamadou Diallo", "Agriculture / Agroalimentaire", "Agriculture", "Macenta", "+224620000000", "Haute Guinée", "Kankan", "cafe@macenta.com", "☕", "Café arabica de haute qualité cultivé en altitude dans la région forestière."],
+    ["nom *", "responsable *", "secteur *", "tag *", "ville *", "wa *", "desc *", "produits *", "email *", "region_nat", "region_admin", "lat", "lng", "logo", "emoji"],
+    ["Café Macenta SARL", "Mamadou Diallo", "Agriculture / Agroalimentaire", "Agriculture", "Macenta", "+224620000000", "Café arabica de haute qualité cultivé en altitude dans la région forestière.", "Café de Macenta, Café torréfié, Livraison à domicile", "cafe@macenta.com", "Haute Guinée", "Kankan", "9.5370", "-13.6773", "", "☕"],
   ];
   const wsImport = XLSX.utils.aoa_to_sheet(importData);
-  wsImport['!cols'] = [{wch:28},{wch:24},{wch:30},{wch:16},{wch:22},{wch:22},{wch:22},{wch:22},{wch:28},{wch:8},{wch:50}];
+  wsImport['!cols'] = [{wch:28},{wch:24},{wch:30},{wch:16},{wch:22},{wch:22},{wch:50},{wch:40},{wch:28},{wch:22},{wch:22},{wch:12},{wch:12},{wch:28},{wch:8}];
   XLSX.utils.book_append_sheet(wb, wsImport, "📥 Import Entreprises");
 
   XLSX.writeFile(wb, 'visuuum224_modele_entreprises.xlsx');
@@ -3565,6 +3569,9 @@ function processImportFile(file) {
       regionAdmin:  r.region_admin || r['region_admin'] || r['Région administrative'] || '',
       email:      r.email || r['Email'] || '',
       desc:       r.desc || r['Description courte'] || r['Description'] || '',
+      produits:   (r.produits || r['Produits'] || '').split(',').map(p => p.trim()).filter(p => p.length > 0),
+      lat:        (r.lat !== undefined && r.lat !== '') ? parseFloat(r.lat) : null,
+      lng:        (r.lng !== undefined && r.lng !== '') ? parseFloat(r.lng) : null,
       emoji:      r.emoji || r['Emoji'] || '🏢',
       logo:       r.logo || r['Logo'] || '',
     })).filter(r => r.nom);
@@ -4848,7 +4855,7 @@ function trackRecherche(terme) {
           </div>
           <div style="display:flex;gap:8px;">
             <button onclick="cancelImport()" style="padding:7px 14px;background:#fff;color:#888;border:1px solid #ddd;border-radius:6px;font-family:'Syne';font-size:11px;cursor:pointer;">Annuler</button>
-            <button onclick="confirmImport()" style="padding:7px 14px;background:#E8622A;color:#fff;border:none;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:700;cursor:pointer;">✦ Importer dans Firebase</button>
+            <button onclick="confirmImport()" style="padding:7px 14px;background:#E8622A;color:#fff;border:none;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:700;cursor:pointer;">✦ Importer</button>
           </div>
         </div>
         <div id="importTable" style="max-height:200px;overflow-y:auto;border-radius:8px;border:1px solid #eee;"></div>
