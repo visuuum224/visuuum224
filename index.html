@@ -1206,6 +1206,32 @@ footer {
     return await updateDoc(doc(db, "entreprises", entrepriseId), { ownerUid: '' });
   };
 
+  // ── Journal des actions (historique admin/collaborateur) ──
+  window.logAction = async function(data) {
+    try {
+      return await addDoc(collection(db, "journal_actions"), {
+        ...data,
+        date: serverTimestamp(),
+        dateAffichage: new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Conakry' })
+      });
+    } catch(err) {
+      console.warn('Journal des actions — enregistrement échoué:', err);
+      return null;
+    }
+  };
+
+  window.getActionsLog = async function() {
+    const snap = await getDocs(collection(db, "journal_actions"));
+    const result = [];
+    snap.forEach(d => result.push({ id: d.id, ...d.data() }));
+    result.sort((a, b) => {
+      const ta = a.date && a.date.toMillis ? a.date.toMillis() : 0;
+      const tb = b.date && b.date.toMillis ? b.date.toMillis() : 0;
+      return tb - ta;
+    });
+    return result;
+  };
+
   // ── Exposer Auth immédiatement après init ──
   window.firebaseLogin = async function(email, password) {
     console.log('Firebase Auth: tentative connexion...');
@@ -3378,6 +3404,7 @@ async function closeAdmin() {
     try { await window.firebaseLogout(); } catch(e) {}
   }
   window._staffRole = null;
+  window._currentStaffInfo = null;
   document.getElementById('adminOverlay').style.display = 'none';
   document.body.style.overflow = '';
   document.getElementById('adminLogin').style.display = 'block';
@@ -3431,6 +3458,12 @@ async function checkAdmin() {
       }
 
       window._staffRole = staffInfo.role || 'collaborateur';
+      window._currentStaffInfo = {
+        uid: user.uid,
+        nom: staffInfo.nom || '',
+        email: staffInfo.email || user.email || '',
+        role: window._staffRole
+      };
       document.getElementById('adminLogin').style.display = 'none';
       document.getElementById('adminDash').style.display = 'block';
       applyRolePermissions();
@@ -3542,7 +3575,7 @@ function togglePassword() {
 }
 
 function switchTab(tab) {
-  const tabs = ['add', 'list', 'produit', 'demandes', 'partenaires', 'comptes'];
+  const tabs = ['add', 'list', 'produit', 'demandes', 'partenaires', 'comptes', 'historique'];
   tabs.forEach(t => {
     const panel = document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1));
     if (panel) panel.style.display = t === tab ? 'block' : 'none';
@@ -3557,6 +3590,7 @@ function switchTab(tab) {
   if (tab === 'demandes') loadDemandesList();
   if (tab === 'partenaires') loadPartenairesAdminList();
   if (tab === 'comptes') loadComptesTab();
+  if (tab === 'historique') loadHistoriqueTab();
 }
 
 async function adminAddEntreprise() {
@@ -4485,6 +4519,9 @@ async function loadAdminList() {
 async function supprimerEntreprise(id, nom) {
   if (!confirm('Supprimer définitivement "' + nom + '" de l\'annuaire ?\n\nCette action est irréversible.')) return;
 
+  const motif = demanderMotif('Motif de la suppression de "' + nom + '" (obligatoire) :');
+  if (motif === null) return;
+
   const el = document.getElementById('admin-ent-' + id);
   if (el) el.style.opacity = '0.4';
 
@@ -4496,6 +4533,7 @@ async function supprimerEntreprise(id, nom) {
     // Retire aussi de l'array local si présent
     const idx = entreprises.findIndex(e => e.id === id);
     if (idx !== -1) { entreprises.splice(idx, 1); renderEntreprises(); }
+    logStaffAction('suppression', 'entreprise', nom, motif);
   } catch(err) {
     alert('Erreur lors de la suppression. Réessayez.');
     if (el) el.style.opacity = '1';
@@ -5336,6 +5374,7 @@ async function savePartenaireHandler() {
       msg.textContent = '✓ Partenaire mis à jour !';
       const idx = partenaires.findIndex(p => p.id === editingId);
       if (idx !== -1) partenaires[idx] = { ...partenaires[idx], ...data };
+      logStaffAction('modification', 'partenaire', nom);
     } else {
       const ref = await window.addPartenaireToFirestore(data);
       msg.style.color = '#2E7D46';
@@ -5385,6 +5424,8 @@ async function deletePartenaireHandler(id, nom) {
     return;
   }
   if (!confirm('Supprimer définitivement "' + nom + '" ?')) return;
+  const motif = demanderMotif('Motif de la suppression du partenaire "' + nom + '" (obligatoire) :');
+  if (motif === null) return;
   const el = document.getElementById('pt-admin-' + id);
   if (el) el.style.opacity = '0.4';
   try {
@@ -5393,6 +5434,7 @@ async function deletePartenaireHandler(id, nom) {
     if (idx !== -1) partenaires.splice(idx, 1);
     renderPartenaires();
     if (el) el.remove();
+    logStaffAction('suppression', 'partenaire', nom, motif);
   } catch(err) {
     alert('Erreur lors de la suppression.');
     if (el) el.style.opacity = '1';
@@ -5435,6 +5477,36 @@ function loadPartenairesAdminList() {
 }
 
 // ── COMPTES UTILISATEURS (gestion des rôles et accès) ──────────────────────────
+
+function logStaffAction(action, cibleType, cibleNom, motif) {
+  if (!window.logAction || !window._currentStaffInfo) return;
+  window.logAction({
+    action, cibleType, cibleNom,
+    motif: motif || '',
+    auteurUid: window._currentStaffInfo.uid,
+    auteurNom: window._currentStaffInfo.nom,
+    auteurEmail: window._currentStaffInfo.email,
+    auteurRole: window._currentStaffInfo.role
+  });
+}
+
+// Demande un motif obligatoire à l'utilisateur avant une action sensible.
+// Retourne le motif (string) ou null si l'utilisateur a annulé.
+function demanderMotif(question) {
+  const motif = prompt(question);
+  if (motif === null) return null; // annulé
+  if (!motif.trim()) {
+    alert('Un motif est obligatoire pour cette action.');
+    return demanderMotifRetry(question);
+  }
+  return motif.trim();
+}
+function demanderMotifRetry(question) {
+  const motif = prompt(question);
+  if (motif === null) return null;
+  if (!motif.trim()) { alert('Motif toujours vide — action annulée.'); return null; }
+  return motif.trim();
+}
 
 function applyRolePermissions() {
   const isFullAdmin = window._staffRole === 'admin';
@@ -5484,6 +5556,7 @@ async function loadStaffList() {
 
   try {
     const staff = await window.getAllStaffAccounts();
+    window._staffCache = staff;
     if (!staff.length) {
       el.innerHTML = '<p style="color:#aaa;">Aucun compte d\'équipe pour le moment.</p>';
       return;
@@ -5665,11 +5738,22 @@ async function linkEntrepriseHandler() {
 }
 
 async function toggleStaffStatutHandler(uid, newStatut) {
+  const staffMember = (window._staffCache || []).find(s => s.id === uid);
+  const nom = staffMember ? staffMember.nom : '(compte)';
   const label = newStatut === 'suspendu' ? 'suspendre' : 'réactiver';
   if (!confirm('Confirmer : ' + label + ' ce compte ?')) return;
+
+  let motif = '';
+  if (newStatut === 'suspendu') {
+    const m = demanderMotif('Motif de la suspension de "' + nom + '" (obligatoire) :');
+    if (m === null) return;
+    motif = m;
+  }
+
   try {
     await window.setStaffStatut(uid, newStatut);
     loadStaffList();
+    logStaffAction(newStatut === 'suspendu' ? 'suspension' : 'reactivation', 'compte_staff', nom, motif);
   } catch(err) {
     alert('Erreur lors de la mise à jour.');
   }
@@ -5677,22 +5761,37 @@ async function toggleStaffStatutHandler(uid, newStatut) {
 
 async function deleteStaffHandler(uid, nom) {
   if (!confirm('Supprimer définitivement l\'accès admin de "' + nom + '" ?\n\nLe compte de connexion Firebase restera techniquement actif (limitation technique) mais n\'aura plus aucun droit sur le site.')) return;
+
+  const motif = demanderMotif('Motif de la suppression du compte de "' + nom + '" (obligatoire) :');
+  if (motif === null) return;
+
   try {
     await window.deleteStaffAccount(uid);
     loadStaffList();
+    logStaffAction('suppression', 'compte_staff', nom, motif);
   } catch(err) {
     alert('Erreur lors de la suppression.');
   }
 }
 
 async function toggleEntStatutHandler(entId, newStatut) {
+  const ent = entreprises.find(e => e.id === entId);
+  const nom = ent ? ent.nom : '(entreprise)';
   const label = newStatut === 'suspendu' ? 'suspendre' : 'réactiver';
   if (!confirm('Confirmer : ' + label + ' l\'accès de cette entreprise à son espace ?\n\nSa fiche restera visible dans l\'annuaire public.')) return;
+
+  let motif = '';
+  if (newStatut === 'suspendu') {
+    const m = demanderMotif('Motif de la suspension du compte de "' + nom + '" (obligatoire) :');
+    if (m === null) return;
+    motif = m;
+  }
+
   try {
     await window.setEntrepriseStatut(entId, newStatut);
-    const ent = entreprises.find(e => e.id === entId);
     if (ent) ent.statut = newStatut;
     loadComptesEntList();
+    logStaffAction(newStatut === 'suspendu' ? 'suspension' : 'reactivation', 'compte_entreprise', nom, motif);
   } catch(err) {
     alert('Erreur lors de la mise à jour.');
   }
@@ -5700,11 +5799,16 @@ async function toggleEntStatutHandler(entId, newStatut) {
 
 async function detachEntHandler(entId, nom) {
   if (!confirm('Détacher le compte de connexion de "' + nom + '" ?\n\nLa fiche restera dans l\'annuaire, mais cette entreprise ne pourra plus se connecter pour la modifier (jusqu\'à ce qu\'un nouveau compte lui soit associé).')) return;
+
+  const motif = demanderMotif('Motif du détachement du compte de "' + nom + '" (obligatoire) :');
+  if (motif === null) return;
+
   try {
     await window.detachEntrepriseAccount(entId);
     const ent = entreprises.find(e => e.id === entId);
     if (ent) ent.ownerUid = '';
     loadComptesEntList();
+    logStaffAction('suppression', 'compte_entreprise', nom, motif);
   } catch(err) {
     alert('Erreur lors de l\'opération.');
   }
@@ -5741,6 +5845,56 @@ async function migrateProduitsHandler(entNom) {
     alert(nbMigres + ' produit(s) ont été récupérés pour "' + ent.nom + '". L\'entreprise les retrouvera dans son espace Marché.');
   } else {
     alert('Aucun produit historique non migré trouvé pour "' + ent.nom + '".');
+  }
+}
+
+// ── HISTORIQUE DES ACTIONS (journal d'audit) ────────────────────────────────────
+async function loadHistoriqueTab() {
+  const el = document.getElementById('historiqueList');
+  if (!el) return;
+  el.innerHTML = 'Chargement...';
+
+  if (!window.getActionsLog) {
+    el.innerHTML = '<p style="color:#888;">Service indisponible.</p>';
+    return;
+  }
+
+  try {
+    const logs = await window.getActionsLog();
+    if (!logs.length) {
+      el.innerHTML = '<p style="color:#aaa;">Aucune action enregistrée pour le moment.</p>';
+      return;
+    }
+
+    const actionMeta = {
+      suppression:  { icon: '🗑️', label: 'a supprimé', color: '#A32D2D' },
+      suspension:   { icon: '⏸',  label: 'a suspendu', color: '#A32D2D' },
+      reactivation: { icon: '✓',  label: 'a réactivé',  color: '#2E7D46' },
+      modification: { icon: '✏️', label: 'a modifié',   color: '#555' },
+    };
+    const cibleLabels = {
+      entreprise: 'l\'entreprise', partenaire: 'le partenaire',
+      compte_staff: 'le compte équipe', compte_entreprise: 'le compte entreprise',
+      produit: 'le produit', demande: 'la demande'
+    };
+
+    el.innerHTML = logs.map(l => {
+      const meta = actionMeta[l.action] || { icon: '•', label: l.action, color: '#888' };
+      const cibleLabel = cibleLabels[l.cibleType] || l.cibleType || '';
+      const roleTag = l.auteurRole === 'admin' ? '👑 Admin' : '👤 Collaborateur';
+      return `
+      <div style="background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:10px;border:1px solid #eee;border-left:3px solid ${meta.color};">
+        <div style="font-size:13px;color:#111;">
+          <strong>${l.auteurNom || l.auteurEmail || 'Quelqu\'un'}</strong>
+          <span style="color:${meta.color};font-weight:600;"> ${meta.icon} ${meta.label} </span>
+          ${cibleLabel} <strong>"${l.cibleNom || ''}"</strong>
+        </div>
+        ${l.motif ? `<div style="font-size:12px;color:#666;margin-top:6px;font-style:italic;">💬 "${l.motif}"</div>` : ''}
+        <div style="font-size:10px;color:#aaa;margin-top:8px;">${roleTag} · ${l.dateAffichage || ''}</div>
+      </div>`;
+    }).join('');
+  } catch(err) {
+    el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement de l\'historique.</p>';
   }
 }
 
@@ -5919,6 +6073,11 @@ function trackRecherche(terme) {
       <button class="admin-tab" id="tab-comptes" onclick="switchTab('comptes')"
         style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
         👥 Comptes
+      </button>
+
+      <button class="admin-tab" id="tab-historique" onclick="switchTab('historique')"
+        style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
+        📜 Historique
       </button>
     </div>
 
@@ -6484,6 +6643,13 @@ function trackRecherche(terme) {
         <div style="font-size:12px;color:#888;margin-bottom:14px;">Suspendre un compte bloque son accès à son espace, sans toucher à sa fiche publique dans l'annuaire.</div>
         <div id="cptEntList" style="font-size:13px;color:#888;">Chargement...</div>
       </div>
+    </div>
+
+    <!-- Tab HISTORIQUE -->
+    <div id="panelHistorique" style="padding:28px; display:none;">
+      <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:6px;">Historique des actions</div>
+      <div style="font-size:12px; color:#888; margin-bottom:20px;">Journal des suppressions, suspensions, réactivations et modifications effectuées par l'équipe. Cet historique ne peut pas être modifié ou effacé.</div>
+      <div id="historiqueList" style="font-size:13px;color:#888;">Chargement...</div>
     </div>
 
   </div>
