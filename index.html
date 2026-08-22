@@ -1556,9 +1556,11 @@ footer {
         <optgroup label="🌾 Haute Guinée">
           <option value="Kankan">Kankan</option>
           <option value="Faranah">Faranah</option>
+          <option value="Siguiri">Siguiri</option>
         </optgroup>
         <optgroup label="🌿 Guinée Forestière">
           <option value="N'Zérékoré">N'Zérékoré</option>
+          <option value="Beyla">Beyla</option>
         </optgroup>
       </select>
       <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:#888;">▾</span>
@@ -1665,9 +1667,11 @@ footer {
         <optgroup label="🌾 Haute Guinée">
           <option value="Kankan">Kankan</option>
           <option value="Faranah">Faranah</option>
+          <option value="Siguiri">Siguiri</option>
         </optgroup>
         <optgroup label="🌿 Guinée Forestière">
           <option value="N'Zérékoré">N'Zérékoré</option>
+          <option value="Beyla">Beyla</option>
         </optgroup>
       </select>
       <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:#888;">▾</span>
@@ -1851,9 +1855,11 @@ footer {
             <optgroup label="🌾 Haute Guinée" data-region-nat="Haute Guinée">
               <option value="Kankan">Kankan</option>
               <option value="Faranah">Faranah</option>
+              <option value="Siguiri">Siguiri</option>
             </optgroup>
             <optgroup label="🌿 Guinée Forestière" data-region-nat="Guinée Forestière">
               <option value="N'Zérékoré">N'Zérékoré</option>
+              <option value="Beyla">Beyla</option>
             </optgroup>
           </select>
         </div>
@@ -2062,7 +2068,7 @@ const entreprises = [
   // ── MINES ──────────────────────────────────────────────────────────────────
   { nom:"Société Minière de Boké (SMB)", secteur:"Mines / Ressources naturelles", ville:"Boké", desc:"Premier producteur et exportateur de bauxite de Guinée. Production de 55 millions de tonnes en 2024.", emoji:"⛏️", tag:"Mines", wa:"", email:"" , regionNat:"Guinée Maritime", regionAdmin:"Boké"},
   { nom:"Compagnie des Bauxites de Guinée (CBG)", secteur:"Mines / Ressources naturelles", ville:"Kamsar, Guinée Maritime", desc:"Joint-venture entre Halco Mining et le Gouvernement guinéen. Mine de Sangarédi, l'une des plus grandes au monde.", emoji:"🪨", tag:"Mines", wa:"", email:"" , regionNat:"Guinée Maritime", regionAdmin:"Boké"},
-  { nom:"Rio Tinto — Simandou", secteur:"Mines / Ressources naturelles", ville:"N'Zérékoré, Guinée Forestière", desc:"Exploitation du gisement de minerai de fer de Simandou, l'un des plus grands gisements non exploités au monde.", emoji:"🏔️", tag:"Mines", wa:"", email:"" , regionNat:"Guinée Forestière", regionAdmin:"N'Zérékoré"},
+  { nom:"Rio Tinto — Simandou", secteur:"Mines / Ressources naturelles", ville:"Beyla, Guinée Forestière", desc:"Exploitation du gisement de minerai de fer de Simandou, l'un des plus grands gisements non exploités au monde.", emoji:"🏔️", tag:"Mines", wa:"", email:"" , regionNat:"Guinée Forestière", regionAdmin:"Beyla"},
   { nom:"SAG SA (Société Aurifère de Guinée)", secteur:"Mines / Ressources naturelles", ville:"Siguiri, Haute-Guinée", desc:"Exploitation aurifère à Siguiri. Filiale d'AngloGold Ashanti.", emoji:"🥇", tag:"Mines", wa:"", email:"" , regionNat:"Haute Guinée", regionAdmin:"Kankan"},
 
   // ── TÉLÉCOMS ────────────────────────────────────────────────────────────────
@@ -2555,15 +2561,15 @@ function setFilter(f, btn) {
 const regionNatToAdmin = {
   'Guinée Maritime': ['Conakry', 'Kindia', 'Boké'],
   'Fouta Djallon':   ['Labé', 'Mamou'],
-  'Haute Guinée':    ['Kankan', 'Faranah'],
-  'Guinée Forestière': ["N'Zérékoré"],
+  'Haute Guinée':    ['Kankan', 'Faranah', 'Siguiri'],
+  'Guinée Forestière': ["N'Zérékoré", 'Beyla'],
 };
 
 const regionAdminToNat = {
   'Conakry': 'Guinée Maritime', 'Kindia': 'Guinée Maritime', 'Boké': 'Guinée Maritime',
   'Labé': 'Fouta Djallon', 'Mamou': 'Fouta Djallon',
-  'Kankan': 'Haute Guinée', 'Faranah': 'Haute Guinée',
-  "N'Zérékoré": 'Guinée Forestière',
+  'Kankan': 'Haute Guinée', 'Faranah': 'Haute Guinée', 'Siguiri': 'Haute Guinée',
+  "N'Zérékoré": 'Guinée Forestière', 'Beyla': 'Guinée Forestière',
 };
 
 function applyFilters() {
@@ -2645,14 +2651,14 @@ function renderProduits() {
 const produitRegNatToAdmin = {
   'Guinée Maritime':   ['Conakry', 'Kindia', 'Boké'],
   'Fouta Djallon':     ['Labé', 'Mamou'],
-  'Haute Guinée':      ['Kankan', 'Faranah'],
-  'Guinée Forestière': ["N'Zérékoré"],
+  'Haute Guinée':      ['Kankan', 'Faranah', 'Siguiri'],
+  'Guinée Forestière': ["N'Zérékoré", 'Beyla'],
 };
 const produitRegAdminToNat = {
   'Conakry': 'Guinée Maritime', 'Kindia': 'Guinée Maritime', 'Boké': 'Guinée Maritime',
   'Labé': 'Fouta Djallon', 'Mamou': 'Fouta Djallon',
-  'Kankan': 'Haute Guinée', 'Faranah': 'Haute Guinée',
-  "N'Zérékoré": 'Guinée Forestière',
+  'Kankan': 'Haute Guinée', 'Faranah': 'Haute Guinée', 'Siguiri': 'Haute Guinée',
+  "N'Zérékoré": 'Guinée Forestière', 'Beyla': 'Guinée Forestière',
 };
 
 function onProduitRegNatChange() {
@@ -2746,7 +2752,7 @@ const produitVilleToRegions = {
   'mamou':      { nat: 'Fouta Djallon', admin: 'Mamou' },
   // Kankan → Haute Guinée
   'kankan':     { nat: 'Haute Guinée', admin: 'Kankan' },
-  'siguiri':    { nat: 'Haute Guinée', admin: 'Kankan' },
+  'siguiri':    { nat: 'Haute Guinée', admin: 'Siguiri' },
   // Faranah → Haute Guinée
   'faranah':    { nat: 'Haute Guinée', admin: 'Faranah' },
   'kissidougou':{ nat: 'Haute Guinée', admin: 'Faranah' },
@@ -2755,7 +2761,7 @@ const produitVilleToRegions = {
   'nzerekore':  { nat: 'Guinée Forestière', admin: "N'Zérékoré" },
   'macenta':    { nat: 'Guinée Forestière', admin: "N'Zérékoré" },
   'guéckédou':  { nat: 'Guinée Forestière', admin: "N'Zérékoré" },
-  'beyla':      { nat: 'Guinée Forestière', admin: "N'Zérékoré" },
+  'beyla':      { nat: 'Guinée Forestière', admin: 'Beyla' },
 };
 
 function getProduitRegions(p) {
@@ -3519,7 +3525,7 @@ async function downloadTemplate() {
   ];
   const TAGS = ["Agriculture","Commerce","Artisanat","BTP","Restauration","Santé","Tech","Finance","Mines","Énergie","Transport","Éducation"];
   const REGIONS_NAT = ["Guinée Maritime","Fouta Djallon","Haute Guinée","Guinée Forestière"];
-  const REGIONS_ADMIN = ["Conakry","Kindia","Boké","Labé","Mamou","Kankan","Faranah","N'Zérékoré"];
+  const REGIONS_ADMIN = ["Conakry","Kindia","Boké","Labé","Mamou","Kankan","Faranah","Siguiri","N'Zérékoré","Beyla"];
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "VISUUUM 224";
@@ -4701,8 +4707,8 @@ async function loadEntEntrepriseTab(uid) {
     const regionsAdminByNat = {
       "Guinée Maritime": ["Conakry","Kindia","Boké"],
       "Fouta Djallon": ["Labé","Mamou"],
-      "Haute Guinée": ["Kankan","Faranah"],
-      "Guinée Forestière": ["N'Zérékoré"]
+      "Haute Guinée": ["Kankan","Faranah","Siguiri"],
+      "Guinée Forestière": ["N'Zérékoré","Beyla"]
     };
     const produitsStr = (ent.produits || []).join(', ');
     const mapsStr = (ent.lat != null && ent.lng != null) ? `${ent.lat}, ${ent.lng}` : '';
@@ -5541,9 +5547,11 @@ function trackRecherche(terme) {
             <optgroup label="Haute Guinée">
               <option value="Kankan">Kankan</option>
               <option value="Faranah">Faranah</option>
+              <option value="Siguiri">Siguiri</option>
             </optgroup>
             <optgroup label="Guinée Forestière">
               <option value="N'Zérékoré">N'Zérékoré</option>
+              <option value="Beyla">Beyla</option>
             </optgroup>
           </select>
         </div>
