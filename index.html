@@ -2434,10 +2434,17 @@ let eFiltered = [];
 
 // Refresh from Firebase if available
 window.refreshEntreprises = function(firebaseData) {
-  // Merge Firebase data with local (Firebase takes priority)
+  // Fusionner les données Firebase avec les données locales
+  // (si une entrée locale existe déjà pour ce nom, on met à jour ses champs
+  // avec la version Firestore — notamment id/ownerUid, ce qui évite de "perdre"
+  // le lien d'un compte migré à chaque rechargement de la page)
   firebaseData.forEach(fb => {
-    const exists = entreprises.find(e => e.nom === fb.nom);
-    if (!exists) entreprises.unshift(fb);
+    const existing = entreprises.find(e => e.nom === fb.nom);
+    if (existing) {
+      Object.assign(existing, fb);
+    } else {
+      entreprises.unshift(fb);
+    }
   });
   eCurrentPage = 1;
   renderEntreprises();
@@ -2447,8 +2454,12 @@ window.refreshEntreprises = function(firebaseData) {
 
 window.refreshProduits = function(firebaseData) {
   firebaseData.forEach(fb => {
-    const exists = produits.produits.find(p => p.id === fb.id || (p.nom === fb.nom && p.vendeur === fb.vendeur));
-    if (!exists) produits.produits.unshift(fb);
+    const existing = produits.produits.find(p => p.id === fb.id || (p.nom === fb.nom && p.vendeur === fb.vendeur));
+    if (existing) {
+      Object.assign(existing, fb);
+    } else {
+      produits.produits.unshift(fb);
+    }
   });
   if (typeof renderProduits === 'function') renderProduits();
 };
@@ -5480,12 +5491,13 @@ async function loadStaffList() {
     const isFullAdmin = window._staffRole === 'admin';
     el.innerHTML = staff.map(s => {
       const suspended = s.statut === 'suspendu';
-      const roleLabel = s.role === 'admin' ? '👑 Admin' : '👤 Collaborateur';
+      const roleLabel = s.role === 'admin' ? '👑 Compte Admin' : '👤 Compte Collaborateur';
       return `
       <div id="staff-${s.id}" style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:8px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
         <div style="flex:1;min-width:0;">
           <div style="font-weight:700;font-size:13px;color:#111;">${s.nom || '(sans nom)'}</div>
-          <div style="font-size:11px;color:#888;">${s.email || ''} · ${roleLabel}</div>
+          ${s.email ? `<div style="font-size:11px;color:#888;">${s.email}</div>` : ''}
+          <div style="font-size:11px;font-weight:600;color:${s.role === 'admin' ? '#E8622A' : '#555'};margin-top:2px;">${roleLabel}</div>
         </div>
         <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;${suspended ? 'background:rgba(163,45,45,.1);color:#A32D2D;' : 'background:rgba(46,125,70,.1);color:#2E7D46;'}">${suspended ? 'Suspendu' : 'Actif'}</span>
         <button onclick="toggleStaffStatutHandler('${s.id}', '${suspended ? 'actif' : 'suspendu'}')"
