@@ -1207,6 +1207,39 @@ footer {
     }
   }
 
+  // ── Charger les partenaires depuis Firestore ──
+  async function loadPartenairesFromFirebase() {
+    try {
+      const snap = await getDocs(collection(db, "partenaires"));
+      if (snap.empty) return;
+      const firebaseData = [];
+      snap.forEach(d => firebaseData.push({ id: d.id, ...d.data() }));
+      console.log(`✓ ${firebaseData.length} partenaires chargés depuis Firebase`);
+      if (window.refreshPartenaires) window.refreshPartenaires(firebaseData);
+    } catch(err) {
+      console.warn("Chargement partenaires Firebase échoué:", err);
+    }
+  }
+
+  window.getPartenairesFromFirestore = async function() {
+    const snap = await getDocs(collection(db, "partenaires"));
+    const result = [];
+    snap.forEach(d => result.push({ id: d.id, ...d.data() }));
+    return result;
+  };
+
+  window.addPartenaireToFirestore = async function(data) {
+    return await addDoc(collection(db, "partenaires"), data);
+  };
+
+  window.updatePartenaireFirestore = async function(id, data) {
+    return await updateDoc(doc(db, "partenaires", id), data);
+  };
+
+  window.deletePartenaireFirestore = async function(id) {
+    return await deleteDoc(doc(db, "partenaires", id));
+  };
+
   // ── Envoyer inscription formulaire vers Firestore (en attente de validation) ──
   window.sendToFirestore = async function(data) {
     try {
@@ -1368,6 +1401,7 @@ footer {
   document.addEventListener('DOMContentLoaded', () => {
     loadEntreprisesFromFirebase();
     loadProduitsFromFirebase();
+    loadPartenairesFromFirebase();
   });
 </script>
 
@@ -1894,131 +1928,7 @@ footer {
   </div>
   <div class="partenaires-track-outer">
     <div class="partenaires-track" id="partenairesTrack">
-
-      <!-- ── SÉRIE 1 (originale) ── -->
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🐔</div>
-        <div><div class="partenaire-nom">Ferme KADY</div><div class="partenaire-type">Élevage &amp; Agriculture</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🐄</div>
-        <div><div class="partenaire-nom">NOB Elevage</div><div class="partenaire-type">Élevage</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🥩</div>
-        <div><div class="partenaire-nom">Agro'ABAT</div><div class="partenaire-type">Agroalimentaire</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🏛️</div>
-        <div><div class="partenaire-nom">Ministère du Commerce</div><div class="partenaire-type">Institution publique</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">📡</div>
-        <div><div class="partenaire-nom">Orange Guinée</div><div class="partenaire-type">Télécoms</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🌾</div>
-        <div><div class="partenaire-nom">Chambre d'Agriculture</div><div class="partenaire-type">Agriculture</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">📶</div>
-        <div><div class="partenaire-nom">MTN Guinée</div><div class="partenaire-type">Télécoms</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🏢</div>
-        <div><div class="partenaire-nom">Chambre de Commerce</div><div class="partenaire-type">Institution</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">💼</div>
-        <div><div class="partenaire-nom">FIMG</div><div class="partenaire-type">Fédération industrielle</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">📱</div>
-        <div><div class="partenaire-nom">Nimba SMS</div><div class="partenaire-type">Tech &amp; Digital</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🌍</div>
-        <div><div class="partenaire-nom">Diaspora Connect</div><div class="partenaire-type">Réseau diaspora</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🏦</div>
-        <div><div class="partenaire-nom">BCRG</div><div class="partenaire-type">Banque centrale</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">⛏️</div>
-        <div><div class="partenaire-nom">Simandou 2040</div><div class="partenaire-type">Mines &amp; Développement</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🏗️</div>
-        <div><div class="partenaire-nom">APIP Guinée</div><div class="partenaire-type">Promotion des investissements</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🌿</div>
-        <div><div class="partenaire-nom">Agri-Guinée</div><div class="partenaire-type">Agroalimentaire</div></div>
-      </div>
-
-      <!-- ── SÉRIE 2 (copie pour boucle infinie) ── -->
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🐔</div>
-        <div><div class="partenaire-nom">Ferme KADY</div><div class="partenaire-type">Élevage &amp; Agriculture</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🐄</div>
-        <div><div class="partenaire-nom">NOB Elevage</div><div class="partenaire-type">Élevage</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🥩</div>
-        <div><div class="partenaire-nom">Agro'ABAT</div><div class="partenaire-type">Agroalimentaire</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🏛️</div>
-        <div><div class="partenaire-nom">Ministère du Commerce</div><div class="partenaire-type">Institution publique</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">📡</div>
-        <div><div class="partenaire-nom">Orange Guinée</div><div class="partenaire-type">Télécoms</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🌾</div>
-        <div><div class="partenaire-nom">Chambre d'Agriculture</div><div class="partenaire-type">Agriculture</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">📶</div>
-        <div><div class="partenaire-nom">MTN Guinée</div><div class="partenaire-type">Télécoms</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🏢</div>
-        <div><div class="partenaire-nom">Chambre de Commerce</div><div class="partenaire-type">Institution</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">💼</div>
-        <div><div class="partenaire-nom">FIMG</div><div class="partenaire-type">Fédération industrielle</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">📱</div>
-        <div><div class="partenaire-nom">Nimba SMS</div><div class="partenaire-type">Tech &amp; Digital</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🌍</div>
-        <div><div class="partenaire-nom">Diaspora Connect</div><div class="partenaire-type">Réseau diaspora</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🏦</div>
-        <div><div class="partenaire-nom">BCRG</div><div class="partenaire-type">Banque centrale</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">⛏️</div>
-        <div><div class="partenaire-nom">Simandou 2040</div><div class="partenaire-type">Mines &amp; Développement</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🏗️</div>
-        <div><div class="partenaire-nom">APIP Guinée</div><div class="partenaire-type">Promotion des investissements</div></div>
-      </div>
-      <div class="partenaire-item">
-        <div class="partenaire-logo">🌿</div>
-        <div><div class="partenaire-nom">Agri-Guinée</div><div class="partenaire-type">Agroalimentaire</div></div>
-      </div>
-
+      <!-- Rempli dynamiquement par renderPartenaires() -->
     </div>
   </div>
 </section>
@@ -2099,6 +2009,36 @@ footer {
 
 <script>
 // ── DATA ──────────────────────────────────────────────────────────────────────
+const partenaires = [
+  { emoji:"🐔", nom:"Ferme KADY", type:"Élevage & Agriculture" },
+  { emoji:"🐄", nom:"NOB Elevage", type:"Élevage" },
+  { emoji:"🥩", nom:"Agro'ABAT", type:"Agroalimentaire" },
+  { emoji:"🏛️", nom:"Ministère du Commerce", type:"Institution publique" },
+  { emoji:"📡", nom:"Orange Guinée", type:"Télécoms" },
+  { emoji:"🌾", nom:"Chambre d'Agriculture", type:"Agriculture" },
+  { emoji:"📶", nom:"MTN Guinée", type:"Télécoms" },
+  { emoji:"🏢", nom:"Chambre de Commerce", type:"Institution" },
+  { emoji:"💼", nom:"FIMG", type:"Fédération industrielle" },
+  { emoji:"📱", nom:"Nimba SMS", type:"Tech & Digital" },
+  { emoji:"🌍", nom:"Diaspora Connect", type:"Réseau diaspora" },
+  { emoji:"🏦", nom:"BCRG", type:"Banque centrale" },
+  { emoji:"⛏️", nom:"Simandou 2040", type:"Mines & Développement" },
+  { emoji:"🏗️", nom:"APIP Guinée", type:"Promotion des investissements" },
+  { emoji:"🌿", nom:"Agri-Guinée", type:"Agroalimentaire" },
+];
+
+function renderPartenaires() {
+  const track = document.getElementById('partenairesTrack');
+  if (!track) return;
+  const itemHtml = p => `
+    <div class="partenaire-item">
+      ${p.logo ? `<img src="${p.logo}" class="partenaire-logo" style="width:40px;height:40px;border-radius:8px;object-fit:cover;">` : `<div class="partenaire-logo">${p.emoji || '🤝'}</div>`}
+      <div><div class="partenaire-nom">${p.nom}</div><div class="partenaire-type">${p.type || ''}</div></div>
+    </div>`;
+  // Dupliqué deux fois pour l'animation de défilement infini
+  track.innerHTML = partenaires.map(itemHtml).join('') + partenaires.map(itemHtml).join('');
+}
+
 const entreprises = [
   { nom:"Ferme KADY - FK", lat:10.0667, lng:-12.8667, secteur:"Agriculture / Agroalimentaire", ville:"Hafia, Kindia", desc:"Élevage de Poules pondeuses, production et commercialisation des œufs.", emoji:"🐔", tag:"Agriculture", wa:"+224629850148", email:"fermekady.224@gmail.com", produits:["Œufs de poule frais","Poulets fermiers","Fientes organiques"] , regionNat:"Guinée Maritime", regionAdmin:"Kindia"},
   { nom:"NOB Elevage", secteur:"Agriculture / Agroalimentaire", ville:"Hafia, Kindia", desc:"Une entreprise d'élevage d'Ovin et de Caprin.", emoji:"🐑", tag:"Agriculture", wa:"+224629850148", email:"fermekady.224@gmail.com", produits:["Moutons","Chèvres","Viande locale"] , regionNat:"Guinée Maritime", regionAdmin:"Kindia"},
@@ -2446,6 +2386,14 @@ window.refreshProduits = function(firebaseData) {
     if (!exists) produits.produits.unshift(fb);
   });
   if (typeof renderProduits === 'function') renderProduits();
+};
+
+window.refreshPartenaires = function(firebaseData) {
+  firebaseData.forEach(fb => {
+    const exists = partenaires.find(p => p.id === fb.id || p.nom === fb.nom);
+    if (!exists) partenaires.push(fb);
+  });
+  renderPartenaires();
 };
 
 function renderEntreprises() {
@@ -3444,7 +3392,7 @@ function togglePassword() {
 }
 
 function switchTab(tab) {
-  const tabs = ['add', 'list', 'produit', 'demandes'];
+  const tabs = ['add', 'list', 'produit', 'demandes', 'partenaires'];
   tabs.forEach(t => {
     const panel = document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1));
     if (panel) panel.style.display = t === tab ? 'block' : 'none';
@@ -3457,6 +3405,7 @@ function switchTab(tab) {
   if (tab === 'list') loadAdminList();
   if (tab === 'produit') populateVendeurSelect();
   if (tab === 'demandes') loadDemandesList();
+  if (tab === 'partenaires') loadPartenairesAdminList();
 }
 
 async function adminAddEntreprise() {
@@ -4006,6 +3955,7 @@ async function adminAddProduit() {
 
 // Auto-fill WhatsApp from selected vendeur
 document.addEventListener('DOMContentLoaded', () => {
+  renderPartenaires();
   const vendeurSel = document.getElementById('p-vendeur');
   if (vendeurSel) {
     vendeurSel.addEventListener('change', () => {
@@ -5172,6 +5122,151 @@ async function deleteMyProduitHandler(id) {
   }
 }
 
+// ── PARTENAIRES (gestion admin) ────────────────────────────────────────────────
+function previewPtLogo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const preview = document.getElementById('pt-logo-preview');
+  const img = document.getElementById('pt-logo-img');
+  img.src = URL.createObjectURL(file);
+  preview.style.display = 'flex';
+}
+
+function resetPartenaireForm() {
+  document.getElementById('pt-editing-id').value = '';
+  document.getElementById('pt-nom').value = '';
+  document.getElementById('pt-type').value = '';
+  document.getElementById('pt-emoji').value = '';
+  document.getElementById('pt-logo-file').value = '';
+  document.getElementById('pt-logo-preview').style.display = 'none';
+  document.getElementById('pt-logo-img').src = '';
+  document.getElementById('pt-save-btn').textContent = '✦ Ajouter le partenaire';
+  const msg = document.getElementById('pt-msg');
+  msg.style.display = 'none';
+}
+
+async function savePartenaireHandler() {
+  const nom = document.getElementById('pt-nom').value.trim();
+  const type = document.getElementById('pt-type').value.trim();
+  const emoji = document.getElementById('pt-emoji').value.trim();
+  const editingId = document.getElementById('pt-editing-id').value;
+  const btn = document.getElementById('pt-save-btn');
+  const msg = document.getElementById('pt-msg');
+
+  if (!nom) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = 'Le nom du partenaire est obligatoire.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Enregistrement...';
+
+  const existing = editingId ? partenaires.find(p => p.id === editingId) : null;
+  let logo = existing ? (existing.logo || '') : '';
+  const fileInput = document.getElementById('pt-logo-file');
+  if (fileInput.files.length > 0) {
+    try {
+      logo = await uploadToImgbb(fileInput.files[0]);
+    } catch(err) {
+      console.warn('Upload logo partenaire échoué:', err);
+    }
+  }
+
+  const data = { nom, type, emoji: emoji || '🤝', logo };
+
+  try {
+    if (editingId) {
+      await window.updatePartenaireFirestore(editingId, data);
+      msg.style.color = '#2E7D46';
+      msg.textContent = '✓ Partenaire mis à jour !';
+      const idx = partenaires.findIndex(p => p.id === editingId);
+      if (idx !== -1) partenaires[idx] = { ...partenaires[idx], ...data };
+    } else {
+      const ref = await window.addPartenaireToFirestore(data);
+      msg.style.color = '#2E7D46';
+      msg.textContent = '✓ Partenaire ajouté !';
+      partenaires.push({ id: ref.id, ...data });
+    }
+    msg.style.display = 'block';
+    renderPartenaires();
+    resetPartenaireForm();
+    loadPartenairesAdminList();
+  } catch(err) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = '❌ Erreur lors de l\'enregistrement.';
+    btn.disabled = false;
+    btn.textContent = editingId ? '✦ Enregistrer les modifications' : '✦ Ajouter le partenaire';
+  }
+}
+
+function editPartenaireHandler(id) {
+  const p = partenaires.find(pp => pp.id === id);
+  if (!p) return;
+  document.getElementById('pt-editing-id').value = id;
+  document.getElementById('pt-nom').value = p.nom || '';
+  document.getElementById('pt-type').value = p.type || '';
+  document.getElementById('pt-emoji').value = p.emoji || '';
+  document.getElementById('pt-logo-file').value = '';
+  if (p.logo) {
+    document.getElementById('pt-logo-img').src = p.logo;
+    document.getElementById('pt-logo-preview').style.display = 'flex';
+  } else {
+    document.getElementById('pt-logo-preview').style.display = 'none';
+  }
+  document.getElementById('pt-save-btn').textContent = '✦ Enregistrer les modifications';
+  document.getElementById('pt-save-btn').disabled = false;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function deletePartenaireHandler(id, nom) {
+  if (!id) {
+    alert('Ce partenaire fait partie de la liste par défaut du site et ne peut pas encore être supprimé depuis Firebase.\\nModifiez-le pour le transformer en entrée gérée, ou contactez le support technique.');
+    return;
+  }
+  if (!confirm('Supprimer définitivement "' + nom + '" ?')) return;
+  const el = document.getElementById('pt-admin-' + id);
+  if (el) el.style.opacity = '0.4';
+  try {
+    await window.deletePartenaireFirestore(id);
+    const idx = partenaires.findIndex(p => p.id === id);
+    if (idx !== -1) partenaires.splice(idx, 1);
+    renderPartenaires();
+    if (el) el.remove();
+  } catch(err) {
+    alert('Erreur lors de la suppression.');
+    if (el) el.style.opacity = '1';
+  }
+}
+
+function loadPartenairesAdminList() {
+  const el = document.getElementById('partenairesAdminList');
+  if (!el) return;
+
+  if (!partenaires.length) {
+    el.innerHTML = '<p style="color:#aaa;">Aucun partenaire pour le moment.</p>';
+    return;
+  }
+
+  el.innerHTML = partenaires.map(p => `
+    <div id="pt-admin-${p.id || p.nom}" style="background:#fff;border-radius:8px;padding:10px 14px;margin-bottom:8px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
+      ${p.logo ? `<img src="${p.logo}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;">` : `<span style="font-size:20px;">${p.emoji || '🤝'}</span>`}
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:13px;color:#111;">${p.nom}</div>
+        <div style="font-size:11px;color:#888;">${p.type || ''}</div>
+      </div>
+      <button onclick="editPartenaireHandler('${p.id || ''}')" title="Modifier" ${!p.id ? 'disabled style="opacity:.3;cursor:not-allowed;"' : ''}
+        style="background:none;border:none;color:#ccc;cursor:pointer;font-size:15px;padding:4px 6px;"
+        onmouseover="this.style.color='#E8622A'" onmouseout="this.style.color='#ccc'">✏️</button>
+      <button onclick="deletePartenaireHandler('${p.id || ''}', '${(p.nom||'').replace(/'/g,"\\'")}')" title="Supprimer"
+        style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;"
+        onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>
+    </div>
+  `).join('');
+}
+
 // Close on Escape
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAdmin(); });
 
@@ -5332,6 +5427,11 @@ function trackRecherche(terme) {
       <button class="admin-tab" id="tab-demandes" onclick="switchTab('demandes')"
         style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888; position:relative;">
         📥 Demandes <span id="demandes-badge" style="display:none; background:#E24B4A; color:#fff; font-size:9px; font-weight:700; padding:1px 6px; border-radius:10px; margin-left:4px;">0</span>
+      </button>
+
+      <button class="admin-tab" id="tab-partenaires" onclick="switchTab('partenaires')"
+        style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
+        🤝 Partenaires
       </button>
     </div>
 
@@ -5761,6 +5861,55 @@ function trackRecherche(terme) {
       <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:6px;">Demandes d'inscription en attente</div>
       <div style="font-size:12px; color:#888; margin-bottom:20px;">Validez ou refusez les entreprises inscrites via le formulaire public. La validation crée automatiquement leur compte et leur envoie un email pour définir leur mot de passe.</div>
       <div id="demandesList" style="font-size:13px; color:#888;">Chargement...</div>
+    </div>
+
+    <!-- Tab PARTENAIRES -->
+    <div id="panelPartenaires" style="padding:28px; display:none;">
+      <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:16px;">Nouveau partenaire</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">NOM *</label>
+          <input id="pt-nom" type="text" placeholder="Ex : Orange Guinée"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">TYPE / SECTEUR</label>
+          <input id="pt-type" type="text" placeholder="Ex : Télécoms"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">EMOJI (si pas de logo)</label>
+          <input id="pt-emoji" type="text" placeholder="🤝" maxlength="4"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">LOGO (optionnel)</label>
+          <input type="file" id="pt-logo-file" accept="image/*" style="display:none;" onchange="previewPtLogo(this)">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <button type="button" onclick="document.getElementById('pt-logo-file').click()"
+              style="padding:9px 18px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:600;color:#555;cursor:pointer;">📤 Choisir</button>
+            <div id="pt-logo-preview" style="display:none;align-items:center;">
+              <img id="pt-logo-img" src="" style="width:34px;height:34px;border-radius:6px;object-fit:cover;border:1px solid #ddd;">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <input type="hidden" id="pt-editing-id" value="">
+      <button onclick="savePartenaireHandler()" id="pt-save-btn"
+        style="width:100%;padding:13px;background:#E8622A;color:#fff;border:none;border-radius:8px;font-family:'Syne';font-size:14px;font-weight:700;cursor:pointer;">
+        ✦ Ajouter le partenaire
+      </button>
+      <p id="pt-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
+
+      <div style="margin-top:28px;padding-top:20px;border-top:1px solid #eee;">
+        <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:14px;">Partenaires actuels</div>
+        <div id="partenairesAdminList" style="font-size:13px;color:#888;">Chargement...</div>
+      </div>
     </div>
 
   </div>
