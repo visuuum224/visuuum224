@@ -1165,6 +1165,11 @@ footer {
     console.log('Firebase Auth: déconnexion OK');
   };
 
+  // Envoi de l'email "réinitialiser mon mot de passe" depuis l'écran de connexion
+  window.sendPasswordResetForLogin = async function(email) {
+    await sendPasswordResetEmail(auth, email, passwordResetSettings);
+  };
+
   onAuthStateChanged(auth, (user) => {
     window.currentAdminUser = user;
     window.firebaseAuthReady = true;
@@ -3385,6 +3390,56 @@ async function checkAdmin() {
   }
 }
 
+async function forgotPasswordHandler() {
+  const email = document.getElementById('adminEmail').value.trim();
+  const errEl = document.getElementById('adminError');
+
+  if (!email) {
+    errEl.style.display = 'block';
+    errEl.style.color = '#E24B4A';
+    errEl.style.background = '#FEECEC';
+    errEl.textContent = '⚠️ Merci de saisir votre email ci-dessus avant de cliquer sur "Mot de passe oublié".';
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errEl.style.display = 'block';
+    errEl.style.color = '#E24B4A';
+    errEl.style.background = '#FEECEC';
+    errEl.textContent = '⚠️ Merci de saisir une adresse email valide.';
+    return;
+  }
+
+  errEl.style.display = 'block';
+  errEl.style.color = '#888';
+  errEl.style.background = '#F0EFEB';
+  errEl.textContent = '⏳ Envoi en cours...';
+
+  try {
+    if (!window.sendPasswordResetForLogin) {
+      throw new Error('Service indisponible - rechargez la page');
+    }
+    await window.sendPasswordResetForLogin(email);
+    errEl.style.color = '#2E7D46';
+    errEl.style.background = '#EAF7EE';
+    errEl.textContent = '✓ Email envoyé ! Vérifiez votre boîte mail (et vos spams) pour définir un nouveau mot de passe.';
+  } catch(err) {
+    errEl.style.color = '#E24B4A';
+    errEl.style.background = '#FEECEC';
+    if (err.code === 'auth/user-not-found') {
+      // Ne pas révéler si l'email existe ou non, pour des raisons de sécurité
+      errEl.style.color = '#2E7D46';
+      errEl.style.background = '#EAF7EE';
+      errEl.textContent = '✓ Si un compte existe pour cet email, un lien de réinitialisation vient d\'être envoyé.';
+    } else if (err.code === 'auth/invalid-email') {
+      errEl.textContent = '⚠️ Format email invalide.';
+    } else if (err.code === 'auth/too-many-requests') {
+      errEl.textContent = '⛔ Trop de tentatives. Réessayez dans quelques minutes.';
+    } else {
+      errEl.textContent = '❌ Erreur lors de l\'envoi. Réessayez.';
+    }
+  }
+}
+
 function togglePassword() {
   const input = document.getElementById('adminPassInput');
   const btn   = document.getElementById('eyeBtn');
@@ -5373,6 +5428,11 @@ function trackRecherche(terme) {
     <button onclick="checkAdmin()" id="loginBtn"
       style="width:100%; padding:13px; background:#E8622A; color:#fff; border:none; border-radius:8px; font-family:'Syne'; font-size:14px; font-weight:700; cursor:pointer; transition:opacity .2s;">
       Se connecter →
+    </button>
+
+    <button onclick="forgotPasswordHandler()"
+      style="background:none; border:none; color:#888; font-size:12px; cursor:pointer; margin-top:14px; text-decoration:underline; text-underline-offset:2px;">
+      Mot de passe oublié ?
     </button>
 
     <p id="adminError" style="color:#E24B4A; font-size:12px; margin-top:12px; display:none; padding:8px; background:#FEECEC; border-radius:6px;"></p>
