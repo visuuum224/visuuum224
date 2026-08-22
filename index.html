@@ -1152,6 +1152,60 @@ footer {
     }
   };
 
+  // Retourne { role, statut, nom, email } si le compte fait partie de l'équipe, sinon null
+  window.getStaffInfo = async function(uid) {
+    try {
+      const snap = await getDoc(doc(db, "admins", uid));
+      return snap.exists() ? snap.data() : null;
+    } catch(err) {
+      console.warn('Vérification staff échouée:', err);
+      return null;
+    }
+  };
+
+  // ── Gestion des comptes (onglet Comptes utilisateurs) ──
+  window.getAllStaffAccounts = async function() {
+    const snap = await getDocs(collection(db, "admins"));
+    const result = [];
+    snap.forEach(d => result.push({ id: d.id, ...d.data() }));
+    return result;
+  };
+
+  // Crée un compte Collaborateur (ou Admin) : compte Firebase Auth + doc admins/{uid}
+  window.createStaffAccount = async function(nom, email, role) {
+    const uid = await window.createEntrepriseAccount(email); // réutilise l'astuce du compte secondaire
+    if (!uid) return null;
+    await setDoc(doc(db, "admins", uid), {
+      nom, email, role: role || 'collaborateur', statut: 'actif',
+      dateCreation: new Date().toLocaleDateString('fr-FR')
+    });
+    return uid;
+  };
+
+  window.setStaffStatut = async function(uid, statut) {
+    return await updateDoc(doc(db, "admins", uid), { statut });
+  };
+
+  window.deleteStaffAccount = async function(uid) {
+    return await deleteDoc(doc(db, "admins", uid));
+  };
+
+  // Lie un compte de connexion à une fiche entreprise existante (qui n'en a pas encore)
+  window.linkAccountToEntreprise = async function(entrepriseId, email) {
+    const uid = await window.createEntrepriseAccount(email);
+    if (!uid) return null;
+    await updateDoc(doc(db, "entreprises", entrepriseId), { ownerUid: uid, email });
+    return uid;
+  };
+
+  window.setEntrepriseStatut = async function(entrepriseId, statut) {
+    return await updateDoc(doc(db, "entreprises", entrepriseId), { statut });
+  };
+
+  window.detachEntrepriseAccount = async function(entrepriseId) {
+    return await updateDoc(doc(db, "entreprises", entrepriseId), { ownerUid: '' });
+  };
+
   // ── Exposer Auth immédiatement après init ──
   window.firebaseLogin = async function(email, password) {
     console.log('Firebase Auth: tentative connexion...');
@@ -3312,6 +3366,7 @@ async function closeAdmin() {
   if (window.firebaseLogout && window.currentAdminUser) {
     try { await window.firebaseLogout(); } catch(e) {}
   }
+  window._staffRole = null;
   document.getElementById('adminOverlay').style.display = 'none';
   document.body.style.overflow = '';
   document.getElementById('adminLogin').style.display = 'block';
@@ -3351,11 +3406,23 @@ async function checkAdmin() {
     document.getElementById('adminEmail').value = '';
     document.getElementById('adminPassInput').value = '';
 
-    const isAdmin = window.checkIsAdmin ? await window.checkIsAdmin(user.uid) : false;
-    document.getElementById('adminLogin').style.display = 'none';
+    const staffInfo = window.getStaffInfo ? await window.getStaffInfo(user.uid) : null;
 
-    if (isAdmin) {
+    if (staffInfo) {
+      // Compte équipe (admin ou collaborateur)
+      if (staffInfo.statut === 'suspendu') {
+        await window.firebaseLogout();
+        errEl.style.display = 'block';
+        errEl.textContent = '⛔ Ce compte a été suspendu. Contactez un administrateur.';
+        btn.textContent = 'Se connecter →';
+        btn.disabled = false;
+        return;
+      }
+
+      window._staffRole = staffInfo.role || 'collaborateur';
+      document.getElementById('adminLogin').style.display = 'none';
       document.getElementById('adminDash').style.display = 'block';
+      applyRolePermissions();
       // Animate stats
       setTimeout(() => animateCounter('admin-count-entreprises', 55, '+'), 200);
       setTimeout(() => animateCounter('admin-count-secteurs', 9, ''), 300);
@@ -3365,6 +3432,17 @@ async function checkAdmin() {
       loadAdminList();
       loadDemandesList();
     } else {
+      // Compte entreprise — vérifier s'il n'est pas suspendu
+      const ent = window.getMyEntrepriseFirestore ? await window.getMyEntrepriseFirestore(user.uid) : null;
+      if (ent && ent.statut === 'suspendu') {
+        await window.firebaseLogout();
+        errEl.style.display = 'block';
+        errEl.textContent = '⛔ Votre accès a été suspendu par VISUUUM 224. Contactez-nous pour plus d\'informations.';
+        btn.textContent = 'Se connecter →';
+        btn.disabled = false;
+        return;
+      }
+      document.getElementById('adminLogin').style.display = 'none';
       document.getElementById('entrepriseDash').style.display = 'block';
       loadEntrepriseDash(user.uid);
     }
@@ -3453,7 +3531,7 @@ function togglePassword() {
 }
 
 function switchTab(tab) {
-  const tabs = ['add', 'list', 'produit', 'demandes', 'partenaires'];
+  const tabs = ['add', 'list', 'produit', 'demandes', 'partenaires', 'comptes'];
   tabs.forEach(t => {
     const panel = document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1));
     if (panel) panel.style.display = t === tab ? 'block' : 'none';
@@ -3467,6 +3545,7 @@ function switchTab(tab) {
   if (tab === 'produit') populateVendeurSelect();
   if (tab === 'demandes') loadDemandesList();
   if (tab === 'partenaires') loadPartenairesAdminList();
+  if (tab === 'comptes') loadComptesTab();
 }
 
 async function adminAddEntreprise() {
@@ -5337,6 +5416,231 @@ function loadPartenairesAdminList() {
   }).join('');
 }
 
+// ── COMPTES UTILISATEURS (gestion des rôles et accès) ──────────────────────────
+
+function applyRolePermissions() {
+  const isFullAdmin = window._staffRole === 'admin';
+  const createSection = document.getElementById('cpt-create-section');
+  const readonlyNotice = document.getElementById('cpt-readonly-notice');
+  if (createSection) createSection.style.display = isFullAdmin ? 'block' : 'none';
+  if (readonlyNotice) readonlyNotice.style.display = isFullAdmin ? 'none' : 'block';
+}
+
+function switchCptType(type) {
+  const isCollab = type === 'collaborateur';
+  document.getElementById('cpt-form-collab').style.display = isCollab ? 'block' : 'none';
+  document.getElementById('cpt-form-ent').style.display = isCollab ? 'none' : 'block';
+  document.getElementById('cpt-type-collab').style.background = isCollab ? '#111' : '#fff';
+  document.getElementById('cpt-type-collab').style.color = isCollab ? '#fff' : '#888';
+  document.getElementById('cpt-type-ent').style.background = isCollab ? '#fff' : '#111';
+  document.getElementById('cpt-type-ent').style.color = isCollab ? '#888' : '#fff';
+  if (!isCollab) populateEntSansCompteSelect();
+}
+
+function populateEntSansCompteSelect() {
+  const sel = document.getElementById('cpt-ent-select');
+  const sansCompte = entreprises.filter(e => !e.ownerUid);
+  if (!sansCompte.length) {
+    sel.innerHTML = '<option value="">Toutes les entreprises ont déjà un compte</option>';
+    return;
+  }
+  sel.innerHTML = sansCompte.map(e => `<option value="${e.id}" data-email="${e.email || ''}">${e.nom}</option>`).join('');
+  sel.onchange = () => {
+    const opt = sel.selectedOptions[0];
+    document.getElementById('cpt-ent-email').value = opt ? (opt.getAttribute('data-email') || '') : '';
+  };
+  sel.dispatchEvent(new Event('change'));
+}
+
+async function loadComptesTab() {
+  applyRolePermissions();
+  switchCptType('collaborateur');
+  loadStaffList();
+  loadComptesEntList();
+}
+
+async function loadStaffList() {
+  const el = document.getElementById('cptStaffList');
+  if (!window.getAllStaffAccounts) { el.innerHTML = '<p style="color:#888;">Service indisponible.</p>'; return; }
+
+  try {
+    const staff = await window.getAllStaffAccounts();
+    if (!staff.length) {
+      el.innerHTML = '<p style="color:#aaa;">Aucun compte d\'équipe pour le moment.</p>';
+      return;
+    }
+    const isFullAdmin = window._staffRole === 'admin';
+    el.innerHTML = staff.map(s => {
+      const suspended = s.statut === 'suspendu';
+      const roleLabel = s.role === 'admin' ? '👑 Admin' : '👤 Collaborateur';
+      return `
+      <div id="staff-${s.id}" style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:8px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:13px;color:#111;">${s.nom || '(sans nom)'}</div>
+          <div style="font-size:11px;color:#888;">${s.email || ''} · ${roleLabel}</div>
+        </div>
+        <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;${suspended ? 'background:rgba(163,45,45,.1);color:#A32D2D;' : 'background:rgba(46,125,70,.1);color:#2E7D46;'}">${suspended ? 'Suspendu' : 'Actif'}</span>
+        <button onclick="toggleStaffStatutHandler('${s.id}', '${suspended ? 'actif' : 'suspendu'}')"
+          style="padding:6px 12px;background:#fff;border:1.5px solid ${suspended ? '#2E7D46' : '#A32D2D'};color:${suspended ? '#2E7D46' : '#A32D2D'};border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
+          ${suspended ? '✓ Réactiver' : '⏸ Suspendre'}
+        </button>
+        ${isFullAdmin ? `
+        <button onclick="deleteStaffHandler('${s.id}', '${(s.nom||'').replace(/'/g,"\\'")}')" title="Supprimer"
+          style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;"
+          onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>` : ''}
+      </div>`;
+    }).join('');
+  } catch(err) {
+    el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
+  }
+}
+
+function loadComptesEntList() {
+  const el = document.getElementById('cptEntList');
+  const withAccount = entreprises.filter(e => e.ownerUid);
+
+  if (!withAccount.length) {
+    el.innerHTML = '<p style="color:#aaa;">Aucune entreprise n\'a encore de compte de connexion.</p>';
+    return;
+  }
+
+  el.innerHTML = withAccount.map(e => {
+    const suspended = e.statut === 'suspendu';
+    return `
+    <div id="ent-cpt-${e.id}" style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:8px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:20px;">${e.emoji || '🏢'}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:13px;color:#111;">${e.nom}</div>
+        <div style="font-size:11px;color:#888;">${e.email || ''}</div>
+      </div>
+      <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;${suspended ? 'background:rgba(163,45,45,.1);color:#A32D2D;' : 'background:rgba(46,125,70,.1);color:#2E7D46;'}">${suspended ? 'Suspendu' : 'Actif'}</span>
+      <button onclick="toggleEntStatutHandler('${e.id}', '${suspended ? 'actif' : 'suspendu'}')"
+        style="padding:6px 12px;background:#fff;border:1.5px solid ${suspended ? '#2E7D46' : '#A32D2D'};color:${suspended ? '#2E7D46' : '#A32D2D'};border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
+        ${suspended ? '✓ Réactiver' : '⏸ Suspendre'}
+      </button>
+      <button onclick="detachEntHandler('${e.id}', '${(e.nom||'').replace(/'/g,"\\'")}')" title="Détacher ce compte de la fiche"
+        style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;"
+        onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🔓</button>
+    </div>`;
+  }).join('');
+}
+
+async function createStaffHandler() {
+  const nom = document.getElementById('cpt-nom').value.trim();
+  const email = document.getElementById('cpt-email').value.trim();
+  const role = document.getElementById('cpt-role').value;
+  const msg = document.getElementById('cpt-msg');
+  const btn = document.getElementById('cpt-create-btn');
+
+  if (!nom || !email) {
+    msg.style.display = 'block'; msg.style.color = '#A32D2D';
+    msg.textContent = 'Merci de remplir le nom et l\'email.';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = '⏳ Création...';
+  try {
+    const uid = await window.createStaffAccount(nom, email, role);
+    msg.style.display = 'block';
+    if (uid) {
+      msg.style.color = '#2E7D46';
+      msg.textContent = '✓ Compte créé ! Un email a été envoyé à ' + email + ' pour définir son mot de passe.';
+      document.getElementById('cpt-nom').value = '';
+      document.getElementById('cpt-email').value = '';
+      loadStaffList();
+    } else {
+      msg.style.color = '#A32D2D';
+      msg.textContent = 'Un compte existe peut-être déjà pour cet email. Vérifiez et réessayez.';
+    }
+  } catch(err) {
+    msg.style.display = 'block'; msg.style.color = '#A32D2D';
+    msg.textContent = '❌ Erreur lors de la création.';
+  } finally {
+    btn.disabled = false; btn.textContent = '✦ Créer le compte';
+  }
+}
+
+async function linkEntrepriseHandler() {
+  const entId = document.getElementById('cpt-ent-select').value;
+  const email = document.getElementById('cpt-ent-email').value.trim();
+  const msg = document.getElementById('cpt-msg');
+  const btn = document.getElementById('cpt-link-btn');
+
+  if (!entId || !email) {
+    msg.style.display = 'block'; msg.style.color = '#A32D2D';
+    msg.textContent = 'Merci de choisir une entreprise et de renseigner un email.';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = '⏳ Création...';
+  try {
+    const uid = await window.linkAccountToEntreprise(entId, email);
+    msg.style.display = 'block';
+    if (uid) {
+      msg.style.color = '#2E7D46';
+      msg.textContent = '✓ Compte créé et associé ! Un email a été envoyé à ' + email + '.';
+      const ent = entreprises.find(e => e.id === entId);
+      if (ent) { ent.ownerUid = uid; ent.email = email; }
+      populateEntSansCompteSelect();
+      loadComptesEntList();
+    } else {
+      msg.style.color = '#A32D2D';
+      msg.textContent = 'Un compte existe peut-être déjà pour cet email.';
+    }
+  } catch(err) {
+    msg.style.display = 'block'; msg.style.color = '#A32D2D';
+    msg.textContent = '❌ Erreur lors de la création.';
+  } finally {
+    btn.disabled = false; btn.textContent = '✦ Créer le compte et l\'associer';
+  }
+}
+
+async function toggleStaffStatutHandler(uid, newStatut) {
+  const label = newStatut === 'suspendu' ? 'suspendre' : 'réactiver';
+  if (!confirm('Confirmer : ' + label + ' ce compte ?')) return;
+  try {
+    await window.setStaffStatut(uid, newStatut);
+    loadStaffList();
+  } catch(err) {
+    alert('Erreur lors de la mise à jour.');
+  }
+}
+
+async function deleteStaffHandler(uid, nom) {
+  if (!confirm('Supprimer définitivement l\'accès admin de "' + nom + '" ?\n\nLe compte de connexion Firebase restera techniquement actif (limitation technique) mais n\'aura plus aucun droit sur le site.')) return;
+  try {
+    await window.deleteStaffAccount(uid);
+    loadStaffList();
+  } catch(err) {
+    alert('Erreur lors de la suppression.');
+  }
+}
+
+async function toggleEntStatutHandler(entId, newStatut) {
+  const label = newStatut === 'suspendu' ? 'suspendre' : 'réactiver';
+  if (!confirm('Confirmer : ' + label + ' l\'accès de cette entreprise à son espace ?\n\nSa fiche restera visible dans l\'annuaire public.')) return;
+  try {
+    await window.setEntrepriseStatut(entId, newStatut);
+    const ent = entreprises.find(e => e.id === entId);
+    if (ent) ent.statut = newStatut;
+    loadComptesEntList();
+  } catch(err) {
+    alert('Erreur lors de la mise à jour.');
+  }
+}
+
+async function detachEntHandler(entId, nom) {
+  if (!confirm('Détacher le compte de connexion de "' + nom + '" ?\n\nLa fiche restera dans l\'annuaire, mais cette entreprise ne pourra plus se connecter pour la modifier (jusqu\'à ce qu\'un nouveau compte lui soit associé).')) return;
+  try {
+    await window.detachEntrepriseAccount(entId);
+    const ent = entreprises.find(e => e.id === entId);
+    if (ent) ent.ownerUid = '';
+    loadComptesEntList();
+  } catch(err) {
+    alert('Erreur lors de l\'opération.');
+  }
+}
+
 // Close on Escape
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAdmin(); });
 
@@ -5507,6 +5811,11 @@ function trackRecherche(terme) {
       <button class="admin-tab" id="tab-partenaires" onclick="switchTab('partenaires')"
         style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
         🤝 Partenaires
+      </button>
+
+      <button class="admin-tab" id="tab-comptes" onclick="switchTab('comptes')"
+        style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
+        👥 Comptes
       </button>
     </div>
 
@@ -5986,6 +6295,91 @@ function trackRecherche(terme) {
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid #eee;">
         <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:14px;">Partenaires actuels</div>
         <div id="partenairesAdminList" style="font-size:13px;color:#888;">Chargement...</div>
+      </div>
+    </div>
+
+    <!-- Tab COMPTES -->
+    <div id="panelComptes" style="padding:28px; display:none;">
+
+      <!-- Création (masqué pour les collaborateurs) -->
+      <div id="cpt-create-section">
+        <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:16px;">Créer un compte</div>
+
+        <div style="display:flex; gap:0; border:1.5px solid #ddd; border-radius:8px; overflow:hidden; margin-bottom:18px; width:fit-content;">
+          <button type="button" onclick="switchCptType('collaborateur')" id="cpt-type-collab"
+            style="padding:9px 18px; border:none; background:#111; color:#fff; font-family:'Syne'; font-size:12px; font-weight:700; cursor:pointer;">
+            👤 Collaborateur
+          </button>
+          <button type="button" onclick="switchCptType('entreprise')" id="cpt-type-ent"
+            style="padding:9px 18px; border:none; background:#fff; color:#888; font-family:'Syne'; font-size:12px; font-weight:700; cursor:pointer;">
+            🏢 Lier une entreprise
+          </button>
+        </div>
+
+        <!-- Formulaire Collaborateur -->
+        <div id="cpt-form-collab">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+            <div>
+              <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">NOM *</label>
+              <input id="cpt-nom" type="text" placeholder="Prénom et nom"
+                style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">EMAIL *</label>
+              <input id="cpt-email" type="email" placeholder="collaborateur@visuuum224.com"
+                style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+            </div>
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">RÔLE</label>
+            <select id="cpt-role" style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;background:#fff;">
+              <option value="collaborateur">Collaborateur (gère le contenu, ne peut pas créer d'autres comptes)</option>
+              <option value="admin">Admin complet (tous les droits)</option>
+            </select>
+          </div>
+          <button onclick="createStaffHandler()" id="cpt-create-btn"
+            style="width:100%;padding:13px;background:#E8622A;color:#fff;border:none;border-radius:8px;font-family:'Syne';font-size:14px;font-weight:700;cursor:pointer;">
+            ✦ Créer le compte
+          </button>
+        </div>
+
+        <!-- Formulaire Lier entreprise -->
+        <div id="cpt-form-ent" style="display:none;">
+          <div style="margin-bottom:14px;">
+            <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">ENTREPRISE (sans compte de connexion)</label>
+            <select id="cpt-ent-select" style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;background:#fff;">
+              <option value="">Chargement...</option>
+            </select>
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">EMAIL DE CONNEXION *</label>
+            <input id="cpt-ent-email" type="email" placeholder="email@entreprise.com"
+              style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+          </div>
+          <button onclick="linkEntrepriseHandler()" id="cpt-link-btn"
+            style="width:100%;padding:13px;background:#E8622A;color:#fff;border:none;border-radius:8px;font-family:'Syne';font-size:14px;font-weight:700;cursor:pointer;">
+            ✦ Créer le compte et l'associer
+          </button>
+        </div>
+
+        <p id="cpt-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
+      </div>
+
+      <div id="cpt-readonly-notice" style="display:none;background:#FFF8ED;border:1px solid #F0DDB0;border-radius:8px;padding:12px 16px;font-size:12px;color:#8a6d1f;margin-bottom:20px;">
+        ℹ️ En tant que collaborateur, vous pouvez suspendre/réactiver des comptes, mais seul un admin complet peut créer ou supprimer un compte d'équipe.
+      </div>
+
+      <!-- Liste ÉQUIPE -->
+      <div style="margin-top:28px;padding-top:20px;border-top:1px solid #eee;">
+        <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:14px;">Équipe VISUUUM 224</div>
+        <div id="cptStaffList" style="font-size:13px;color:#888;">Chargement...</div>
+      </div>
+
+      <!-- Liste ENTREPRISES -->
+      <div style="margin-top:28px;padding-top:20px;border-top:1px solid #eee;">
+        <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:6px;">Comptes entreprises</div>
+        <div style="font-size:12px;color:#888;margin-bottom:14px;">Suspendre un compte bloque son accès à son espace, sans toucher à sa fiche publique dans l'annuaire.</div>
+        <div id="cptEntList" style="font-size:13px;color:#888;">Chargement...</div>
       </div>
     </div>
 
