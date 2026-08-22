@@ -5434,6 +5434,7 @@ function switchCptType(type) {
   document.getElementById('cpt-type-collab').style.color = isCollab ? '#fff' : '#888';
   document.getElementById('cpt-type-ent').style.background = isCollab ? '#fff' : '#111';
   document.getElementById('cpt-type-ent').style.color = isCollab ? '#888' : '#fff';
+  document.getElementById('cpt-msg').style.display = 'none';
   if (!isCollab) populateEntSansCompteSelect();
 }
 
@@ -5444,7 +5445,7 @@ function populateEntSansCompteSelect() {
     sel.innerHTML = '<option value="">Toutes les entreprises ont déjà un compte</option>';
     return;
   }
-  sel.innerHTML = sansCompte.map(e => `<option value="${e.id}" data-email="${e.email || ''}">${e.nom}</option>`).join('');
+  sel.innerHTML = sansCompte.map(e => `<option value="${(e.nom||'').replace(/"/g,'&quot;')}" data-email="${e.email || ''}">${e.nom}</option>`).join('');
   sel.onchange = () => {
     const opt = sel.selectedOptions[0];
     document.getElementById('cpt-ent-email').value = opt ? (opt.getAttribute('data-email') || '') : '';
@@ -5561,26 +5562,46 @@ async function createStaffHandler() {
 }
 
 async function linkEntrepriseHandler() {
-  const entId = document.getElementById('cpt-ent-select').value;
+  const entNom = document.getElementById('cpt-ent-select').value;
   const email = document.getElementById('cpt-ent-email').value.trim();
   const msg = document.getElementById('cpt-msg');
   const btn = document.getElementById('cpt-link-btn');
 
-  if (!entId || !email) {
+  if (!entNom || !email) {
     msg.style.display = 'block'; msg.style.color = '#A32D2D';
     msg.textContent = 'Merci de choisir une entreprise et de renseigner un email.';
     return;
   }
 
+  const ent = entreprises.find(e => e.nom === entNom && !e.ownerUid);
+  if (!ent) {
+    msg.style.display = 'block'; msg.style.color = '#A32D2D';
+    msg.textContent = 'Entreprise introuvable. Rechargez la page et réessayez.';
+    return;
+  }
+
   btn.disabled = true; btn.textContent = '⏳ Création...';
   try {
-    const uid = await window.linkAccountToEntreprise(entId, email);
+    let entrepriseId = ent.id;
+
+    // Cette entreprise n'existe pas encore comme document Firestore (donnée historique
+    // codée en dur sur le site) : on la migre d'abord en créant sa vraie fiche.
+    if (!entrepriseId) {
+      btn.textContent = '⏳ Migration de la fiche...';
+      const { id, ...dataToSave } = ent;
+      const ref = await window.addEntrepriseToFirestore({ ...dataToSave, email });
+      entrepriseId = ref.id;
+      ent.id = entrepriseId;
+      btn.textContent = '⏳ Création du compte...';
+    }
+
+    const uid = await window.linkAccountToEntreprise(entrepriseId, email);
     msg.style.display = 'block';
     if (uid) {
       msg.style.color = '#2E7D46';
       msg.textContent = '✓ Compte créé et associé ! Un email a été envoyé à ' + email + '.';
-      const ent = entreprises.find(e => e.id === entId);
-      if (ent) { ent.ownerUid = uid; ent.email = email; }
+      ent.ownerUid = uid;
+      ent.email = email;
       populateEntSansCompteSelect();
       loadComptesEntList();
     } else {
@@ -5589,7 +5610,8 @@ async function linkEntrepriseHandler() {
     }
   } catch(err) {
     msg.style.display = 'block'; msg.style.color = '#A32D2D';
-    msg.textContent = '❌ Erreur lors de la création.';
+    msg.textContent = '❌ Erreur : ' + (err.message || 'Erreur lors de la création.');
+    console.error('linkEntrepriseHandler error:', err);
   } finally {
     btn.disabled = false; btn.textContent = '✦ Créer le compte et l\'associer';
   }
