@@ -1194,7 +1194,10 @@ footer {
   window.linkAccountToEntreprise = async function(entrepriseId, email) {
     const uid = await window.createEntrepriseAccount(email);
     if (!uid) return null;
-    await updateDoc(doc(db, "entreprises", entrepriseId), { ownerUid: uid, email });
+    await updateDoc(doc(db, "entreprises", entrepriseId), {
+      ownerUid: uid, email,
+      dateCompte: new Date().toLocaleDateString('fr-FR')
+    });
     return uid;
   };
 
@@ -1414,7 +1417,9 @@ footer {
       lng: inscriptionData.lng || null,
       adresses: [],
       ownerUid: ownerUid || '',
-      dateAjout: new Date().toLocaleDateString('fr-FR')
+      dateAjout: new Date().toLocaleDateString('fr-FR'),
+      dateDemande: inscriptionData.date || '',
+      dateCompte: ownerUid ? new Date().toLocaleDateString('fr-FR') : ''
     };
     const ref = await addDoc(collection(db, "entreprises"), entrepriseData);
     await updateDoc(doc(db, "inscriptions", inscriptionId), { status: 'validee', entrepriseId: ref.id });
@@ -3655,7 +3660,7 @@ async function adminAddEntreprise() {
     ownerUid = await window.createEntrepriseAccount(email) || '';
   }
 
-  const data = { nom, responsable: resp, secteur, tag, ville, regionNat, regionAdmin, wa, email, emoji, desc, logo, adresses, ownerUid, dateAjout: new Date().toLocaleDateString('fr-FR') };
+  const data = { nom, responsable: resp, secteur, tag, ville, regionNat, regionAdmin, wa, email, emoji, desc, logo, adresses, ownerUid, dateAjout: new Date().toLocaleDateString('fr-FR'), dateCompte: ownerUid ? new Date().toLocaleDateString('fr-FR') : '' };
 
   try {
     if (window.addEntrepriseToFirestore) {
@@ -4503,6 +4508,9 @@ async function loadAdminList() {
         <div style="flex:1;">
           <div style="font-weight:700;font-size:13px;color:#111;">${e.nom}</div>
           <div style="font-size:11px;color:#888;">${e.secteur} · ${e.ville}</div>
+          <div style="font-size:10px;color:#aaa;margin-top:3px;">
+            ${e.dateAjout ? `📅 Créée le ${e.dateAjout}` : ''}${e.dateDemande ? ` · 📥 Demande du ${e.dateDemande}` : ''}
+          </div>
         </div>
         <span style="font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(232,98,42,.1);color:#E8622A;">${e.tag || e.secteur}</span>
         <button onclick="supprimerEntreprise('${e.id}', '${(e.nom||'').replace(/'/g,"\\'")}')"
@@ -5366,6 +5374,7 @@ async function savePartenaireHandler() {
   }
 
   const data = { nom, type, emoji: emoji || '🤝', logo };
+  if (!editingId) data.dateCreation = new Date().toLocaleDateString('fr-FR');
 
   try {
     if (editingId) {
@@ -5463,6 +5472,7 @@ function loadPartenairesAdminList() {
       <div style="flex:1;min-width:0;">
         <div style="font-weight:700;font-size:13px;color:#111;">${p.nom}</div>
         <div style="font-size:11px;color:#888;">${p.type || ''}</div>
+        <div style="font-size:10px;color:#aaa;margin-top:3px;">${p.dateCreation ? `📅 Ajouté le ${p.dateCreation}` : (disabled ? '📅 Partenaire par défaut du site' : '')}</div>
       </div>
       <button type="button" onclick="editPartenaireHandler('${p.id || ''}')" title="${disabled ? 'Partenaire par défaut — non modifiable' : 'Modifier'}" ${disabled ? 'disabled' : ''}
         style="${editStyle}"
@@ -5571,6 +5581,7 @@ async function loadStaffList() {
           <div style="font-weight:700;font-size:13px;color:#111;">${s.nom || '(sans nom)'}</div>
           ${s.email ? `<div style="font-size:11px;color:#888;">${s.email}</div>` : ''}
           <div style="font-size:11px;font-weight:600;color:${s.role === 'admin' ? '#E8622A' : '#555'};margin-top:2px;">${roleLabel}</div>
+          ${s.dateCreation ? `<div style="font-size:10px;color:#aaa;margin-top:3px;">📅 Créé le ${s.dateCreation}</div>` : ''}
         </div>
         <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;${suspended ? 'background:rgba(163,45,45,.1);color:#A32D2D;' : 'background:rgba(46,125,70,.1);color:#2E7D46;'}">${suspended ? 'Suspendu' : 'Actif'}</span>
         <button onclick="toggleStaffStatutHandler('${s.id}', '${suspended ? 'actif' : 'suspendu'}')"
@@ -5605,6 +5616,7 @@ function loadComptesEntList() {
       <div style="flex:1;min-width:0;">
         <div style="font-weight:700;font-size:13px;color:#111;">${e.nom}</div>
         <div style="font-size:11px;color:#888;">${e.email || ''}</div>
+        ${e.dateCompte ? `<div style="font-size:10px;color:#aaa;margin-top:3px;">📅 Compte créé le ${e.dateCompte}</div>` : ''}
       </div>
       <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;${suspended ? 'background:rgba(163,45,45,.1);color:#A32D2D;' : 'background:rgba(46,125,70,.1);color:#2E7D46;'}">${suspended ? 'Suspendu' : 'Actif'}</span>
       <button onclick="toggleEntStatutHandler('${e.id}', '${suspended ? 'actif' : 'suspendu'}')"
