@@ -1485,7 +1485,8 @@ footer {
         <option value="Mines">⛏️ Mines &amp; Ressources</option>
         <option value="Finance">🏦 Finance &amp; Banque</option>
         <option value="Énergie">⚡ Énergie</option>
-        <option value="Éducation">🎓 Éducation</option>
+        <option value="Transport">🚚 Transport &amp; Logistique</option>
+        <option value="Éducation">🎓 Éducation &amp; Formation</option>
       </select>
       <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:#888;">▾</span>
     </div>
@@ -1755,15 +1756,18 @@ footer {
         <label class="form-label">Secteur d'activité *</label>
         <select class="form-select form-input" id="f-secteur">
           <option value="">Choisir ...</option>
-          <option>Agriculture / Agroalimentaire</option>
-          <option>Commerce / Vente</option>
-          <option>Artisanat / Mode</option>
-          <option>BTP / Immobilier</option>
-          <option>Restauration / Food</option>
-          <option>Santé / Beauté</option>
-          <option>Transport / Logistique</option>
-          <option>Tech / Numérique</option>
-          <option>Éducation / Formation</option>
+          <option>🌾 Agriculture & Agroalimentaire</option>
+          <option>🛍️ Commerce & Vente</option>
+          <option>🧵 Artisanat & Mode</option>
+          <option>🏗️ BTP & Immobilier</option>
+          <option>🍽️ Restauration & Food</option>
+          <option>💊 Santé & Beauté</option>
+          <option>💻 Tech & Numérique</option>
+          <option>🏦 Finance & Banque</option>
+          <option>⛏️ Mines & Ressources</option>
+          <option>⚡ Énergie</option>
+          <option>🚚 Transport & Logistique</option>
+          <option>🎓 Éducation & Formation</option>
         </select>
       </div>
       <div class="form-group">
@@ -3567,7 +3571,7 @@ function downloadTemplate() {
     ["COLONNE", "OBLIGATOIRE ?", "DESCRIPTION", "EXEMPLE", "VALEURS POSSIBLES"],
     ["nom", "✅ OUI", "Nom officiel de l'entreprise", "Café Macenta SARL", "Texte libre"],
     ["responsable", "✅ OUI", "Prénom et nom du dirigeant", "Mamadou Diallo", "Texte libre"],
-    ["secteur", "✅ OUI", "Secteur d'activité principal", "Agriculture / Agroalimentaire", "Agriculture / Agroalimentaire | Commerce / Vente | Artisanat / Mode | BTP / Immobilier | Restauration / Food | Santé / Beauté | Tech / Numérique | Finance / Banque | Mines / Ressources | Énergie | Transport / Logistique | Éducation / Formation"],
+    ["secteur", "✅ OUI", "Secteur d'activité principal", "🌾 Agriculture & Agroalimentaire", "🌾 Agriculture & Agroalimentaire | 🛍️ Commerce & Vente | 🧵 Artisanat & Mode | 🏗️ BTP & Immobilier | 🍽️ Restauration & Food | 💊 Santé & Beauté | 💻 Tech & Numérique | 🏦 Finance & Banque | ⛏️ Mines & Ressources | ⚡ Énergie | 🚚 Transport & Logistique | 🎓 Éducation & Formation"],
     ["tag", "✅ OUI", "Tag court pour les filtres", "Agriculture", "Agriculture | Commerce | Artisanat | BTP | Restauration | Santé | Tech | Finance | Mines | Énergie"],
     ["ville", "✅ OUI", "Ville ou quartier principal", "Conakry, Kaloum", "Texte libre"],
     ["wa", "✅ OUI", "Numéro WhatsApp avec indicatif pays", "+224 620 00 00 00", "+224XXXXXXXXX"],
@@ -3588,7 +3592,7 @@ function downloadTemplate() {
   // Feuille IMPORT
   const importData = [
     ["nom *", "responsable *", "secteur *", "tag *", "ville *", "wa *", "desc *", "produits *", "email *", "region_nat", "region_admin", "lat", "lng", "logo", "emoji"],
-    ["Café Macenta SARL", "Mamadou Diallo", "Agriculture / Agroalimentaire", "Agriculture", "Macenta", "+224620000000", "Café arabica de haute qualité cultivé en altitude dans la région forestière.", "Café de Macenta, Café torréfié, Livraison à domicile", "cafe@macenta.com", "Haute Guinée", "Kankan", "9.5370", "-13.6773", "", "☕"],
+    ["Café Macenta SARL", "Mamadou Diallo", "🌾 Agriculture & Agroalimentaire", "Agriculture", "Macenta", "+224620000000", "Café arabica de haute qualité cultivé en altitude dans la région forestière.", "Café de Macenta, Café torréfié, Livraison à domicile", "cafe@macenta.com", "Haute Guinée", "Kankan", "9.5370", "-13.6773", "", "☕"],
   ];
   const wsImport = XLSX.utils.aoa_to_sheet(importData);
   wsImport['!cols'] = [{wch:28},{wch:24},{wch:30},{wch:16},{wch:22},{wch:22},{wch:50},{wch:40},{wch:28},{wch:22},{wch:22},{wch:12},{wch:12},{wch:28},{wch:8}];
@@ -4674,7 +4678,7 @@ async function loadEntEntrepriseTab(uid) {
     }
     window._myEntreprise = ent;
 
-    const secteurs = ["Agriculture / Agroalimentaire","Commerce / Vente","Artisanat / Mode","BTP / Immobilier","Restauration / Food","Santé / Beauté","Transport / Logistique","Tech / Numérique","Éducation / Formation"];
+    const secteurs = ["🌾 Agriculture & Agroalimentaire","🛍️ Commerce & Vente","🧵 Artisanat & Mode","🏗️ BTP & Immobilier","🍽️ Restauration & Food","💊 Santé & Beauté","💻 Tech & Numérique","🏦 Finance & Banque","⛏️ Mines & Ressources","⚡ Énergie","🚚 Transport & Logistique","🎓 Éducation & Formation"];
     const regionsNat = [
       {v:"Guinée Maritime", l:"🌊 Guinée Maritime"},
       {v:"Fouta Djallon", l:"⛰️ Fouta Djallon"},
@@ -5291,34 +5295,36 @@ function trackRecherche(terme) {
           <select id="a-secteur"
             style="width:100%; padding:11px 14px; border:1.5px solid #ddd; border-radius:6px; font-family:'Syne'; font-size:13px; outline:none; background:#fff;">
             <option value="">Choisir...</option>
-            <option value="Agriculture / Agroalimentaire">Agriculture / Agroalimentaire</option>
-            <option value="Commerce / Vente">Commerce / Vente</option>
-            <option value="Artisanat / Mode">Artisanat / Mode</option>
-            <option value="BTP / Immobilier">BTP / Immobilier</option>
-            <option value="Restauration / Food">Restauration / Food</option>
-            <option value="Santé / Beauté">Santé / Beauté</option>
-            <option value="Tech / Numérique">Tech / Numérique</option>
-            <option value="Finance / Banque">Finance / Banque</option>
-            <option value="Mines / Ressources">Mines / Ressources</option>
-            <option value="Énergie">Énergie</option>
-            <option value="Transport / Logistique">Transport / Logistique</option>
-            <option value="Éducation / Formation">Éducation / Formation</option>
+            <option value="🌾 Agriculture & Agroalimentaire">🌾 Agriculture & Agroalimentaire</option>
+            <option value="🛍️ Commerce & Vente">🛍️ Commerce & Vente</option>
+            <option value="🧵 Artisanat & Mode">🧵 Artisanat & Mode</option>
+            <option value="🏗️ BTP & Immobilier">🏗️ BTP & Immobilier</option>
+            <option value="🍽️ Restauration & Food">🍽️ Restauration & Food</option>
+            <option value="💊 Santé & Beauté">💊 Santé & Beauté</option>
+            <option value="💻 Tech & Numérique">💻 Tech & Numérique</option>
+            <option value="🏦 Finance & Banque">🏦 Finance & Banque</option>
+            <option value="⛏️ Mines & Ressources">⛏️ Mines & Ressources</option>
+            <option value="⚡ Énergie">⚡ Énergie</option>
+            <option value="🚚 Transport & Logistique">🚚 Transport & Logistique</option>
+            <option value="🎓 Éducation & Formation">🎓 Éducation & Formation</option>
           </select>
         </div>
         <div>
           <label style="font-size:10px; font-weight:700; letter-spacing:.12em; color:#888; display:block; margin-bottom:6px;">TAG FILTRE *</label>
           <select id="a-tag"
             style="width:100%; padding:11px 14px; border:1.5px solid #ddd; border-radius:6px; font-family:'Syne'; font-size:13px; outline:none; background:#fff;">
-            <option value="Agriculture">Agriculture</option>
-            <option value="Commerce">Commerce</option>
-            <option value="Artisanat">Artisanat</option>
-            <option value="BTP">BTP</option>
-            <option value="Restauration">Restauration</option>
-            <option value="Santé">Santé</option>
-            <option value="Tech">Tech</option>
-            <option value="Finance">Finance</option>
-            <option value="Mines">Mines</option>
-            <option value="Énergie">Énergie</option>
+            <option value="Agriculture">🌾 Agriculture</option>
+            <option value="Commerce">🛍️ Commerce</option>
+            <option value="Artisanat">🧵 Artisanat</option>
+            <option value="BTP">🏗️ BTP</option>
+            <option value="Restauration">🍽️ Restauration</option>
+            <option value="Santé">💊 Santé</option>
+            <option value="Tech">💻 Tech</option>
+            <option value="Finance">🏦 Finance</option>
+            <option value="Mines">⛏️ Mines</option>
+            <option value="Énergie">⚡ Énergie</option>
+            <option value="Transport">🚚 Transport</option>
+            <option value="Éducation">🎓 Éducation</option>
           </select>
         </div>
       </div>
