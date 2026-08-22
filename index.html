@@ -5519,6 +5519,10 @@ function loadComptesEntList() {
         style="padding:6px 12px;background:#fff;border:1.5px solid ${suspended ? '#2E7D46' : '#A32D2D'};color:${suspended ? '#2E7D46' : '#A32D2D'};border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
         ${suspended ? '✓ Réactiver' : '⏸ Suspendre'}
       </button>
+      <button onclick="migrateProduitsHandler('${(e.nom||'').replace(/'/g,"\\'")}')" title="Récupérer ses anciens produits non migrés"
+        style="padding:6px 10px;background:#fff;border:1.5px solid #ddd;color:#888;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
+        🔄 Produits
+      </button>
       <button onclick="detachEntHandler('${e.id}', '${(e.nom||'').replace(/'/g,"\\'")}')" title="Détacher ce compte de la fiche"
         style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;"
         onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🔓</button>
@@ -5599,9 +5603,33 @@ async function linkEntrepriseHandler() {
     msg.style.display = 'block';
     if (uid) {
       msg.style.color = '#2E7D46';
-      msg.textContent = '✓ Compte créé et associé ! Un email a été envoyé à ' + email + '.';
       ent.ownerUid = uid;
       ent.email = email;
+
+      // Migrer aussi les produits historiques de cette entreprise (codés en dur, jamais
+      // enregistrés dans Firestore) pour qu'elle les retrouve dans son espace "Marché"
+      let nbProduitsMigres = 0;
+      try {
+        const cats = ['produits', 'services', 'artisanat'];
+        for (const cat of cats) {
+          const list = produits[cat] || [];
+          for (const p of list) {
+            if (p.vendeur === ent.nom && !p.id) {
+              const { id, ...prodData } = p;
+              const pref = await window.addMyProduit({ ...prodData, ownerUid: uid });
+              p.id = pref.id;
+              p.ownerUid = uid;
+              nbProduitsMigres++;
+            }
+          }
+        }
+      } catch(prodErr) {
+        console.warn('Migration produits échouée:', prodErr);
+      }
+
+      msg.textContent = '✓ Compte créé et associé' +
+        (nbProduitsMigres > 0 ? ' avec ' + nbProduitsMigres + ' produit(s) migré(s)' : '') +
+        ' ! Un email a été envoyé à ' + email + '.';
       populateEntSansCompteSelect();
       loadComptesEntList();
     } else {
@@ -5660,6 +5688,40 @@ async function detachEntHandler(entId, nom) {
     loadComptesEntList();
   } catch(err) {
     alert('Erreur lors de l\'opération.');
+  }
+}
+
+async function migrateProduitsHandler(entNom) {
+  const ent = entreprises.find(e => e.nom === entNom);
+  if (!ent || !ent.ownerUid) {
+    alert('Cette entreprise n\'a pas encore de compte associé.');
+    return;
+  }
+
+  let nbMigres = 0;
+  try {
+    const cats = ['produits', 'services', 'artisanat'];
+    for (const cat of cats) {
+      const list = produits[cat] || [];
+      for (const p of list) {
+        if (p.vendeur === ent.nom && !p.id) {
+          const { id, ...prodData } = p;
+          const pref = await window.addMyProduit({ ...prodData, ownerUid: ent.ownerUid });
+          p.id = pref.id;
+          p.ownerUid = ent.ownerUid;
+          nbMigres++;
+        }
+      }
+    }
+  } catch(err) {
+    alert('Erreur lors de la migration : ' + (err.message || err));
+    return;
+  }
+
+  if (nbMigres > 0) {
+    alert(nbMigres + ' produit(s) ont été récupérés pour "' + ent.nom + '". L\'entreprise les retrouvera dans son espace Marché.');
+  } else {
+    alert('Aucun produit historique non migré trouvé pour "' + ent.nom + '".');
   }
 }
 
