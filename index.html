@@ -5365,8 +5365,12 @@ function editPartenaireHandler(id) {
 }
 
 async function deletePartenaireHandler(id, nom) {
+  if (window._staffRole !== 'admin') {
+    alert('Seul un admin complet peut supprimer un partenaire.');
+    return;
+  }
   if (!id) {
-    alert('Ce partenaire fait partie de la liste par défaut du site et ne peut pas encore être supprimé depuis Firebase.\\nModifiez-le pour le transformer en entrée gérée, ou contactez le support technique.');
+    alert('Ce partenaire fait partie de la liste par défaut du site et ne peut pas encore être supprimé depuis Firebase.\nModifiez-le pour le transformer en entrée gérée, ou contactez le support technique.');
     return;
   }
   if (!confirm('Supprimer définitivement "' + nom + '" ?')) return;
@@ -5393,6 +5397,8 @@ function loadPartenairesAdminList() {
     return;
   }
 
+  const isFullAdmin = window._staffRole === 'admin';
+
   el.innerHTML = partenaires.map(p => {
     const disabled = !p.id;
     const editStyle = disabled
@@ -5408,9 +5414,10 @@ function loadPartenairesAdminList() {
       <button type="button" onclick="editPartenaireHandler('${p.id || ''}')" title="${disabled ? 'Partenaire par défaut — non modifiable' : 'Modifier'}" ${disabled ? 'disabled' : ''}
         style="${editStyle}"
         ${disabled ? '' : `onmouseover="this.style.color='#E8622A'" onmouseout="this.style.color='#ccc'"`}>✏️</button>
+      ${isFullAdmin ? `
       <button type="button" onclick="deletePartenaireHandler('${p.id || ''}', '${(p.nom||'').replace(/'/g,"\\'")}')" title="Supprimer"
         style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;"
-        onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>
+        onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>` : ''}
     </div>
   `;
   }).join('');
