@@ -4498,11 +4498,20 @@ async function loadAdminList() {
 
   try {
     const data = await window.getEntreprisesFromFirestore();
-    if (!data.length) {
-      listEl.innerHTML = '<p style="color:#888;">Aucune entreprise dans Firebase.</p>';
-      return;
-    }
-    listEl.innerHTML = data.map((e, i) => `
+    window._adminEntCache = data;
+    renderAdminListRows(data);
+  } catch(err) {
+    listEl.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
+  }
+}
+
+function renderAdminListRows(data) {
+  const listEl = document.getElementById('adminList');
+  if (!data.length) {
+    listEl.innerHTML = '<p style="color:#888;">Aucune entreprise trouvée.</p>';
+    return;
+  }
+  listEl.innerHTML = data.map((e, i) => `
       <div id="admin-ent-${e.id}" style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:10px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
         <span style="font-size:22px;">${e.emoji || '🏢'}</span>
         <div style="flex:1;">
@@ -4518,10 +4527,32 @@ async function loadAdminList() {
           style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;transition:.15s;"
           onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>
       </div>
-    `).join('');
-  } catch(err) {
-    listEl.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
-  }
+  `).join('');
+}
+
+function filterAdminList() {
+  const kw = (document.getElementById('al-search').value || '').toLowerCase().trim();
+  const from = document.getElementById('al-date-from').value;
+  const to = document.getElementById('al-date-to').value;
+  const data = window._adminEntCache || [];
+
+  const filtered = data.filter(e => {
+    const matchKw = !kw ||
+      (e.nom||'').toLowerCase().includes(kw) ||
+      (e.secteur||'').toLowerCase().includes(kw) ||
+      (e.ville||'').toLowerCase().includes(kw) ||
+      (e.tag||'').toLowerCase().includes(kw);
+    const matchDate = dateInRange(e.dateAjout, from, to) || dateInRange(e.dateDemande, from, to);
+    return matchKw && matchDate;
+  });
+  renderAdminListRows(filtered);
+}
+
+function resetAdminListFilter() {
+  document.getElementById('al-search').value = '';
+  document.getElementById('al-date-from').value = '';
+  document.getElementById('al-date-to').value = '';
+  renderAdminListRows(window._adminEntCache || []);
 }
 
 async function supprimerEntreprise(id, nom) {
@@ -5450,18 +5481,19 @@ async function deletePartenaireHandler(id, nom) {
   }
 }
 
-function loadPartenairesAdminList() {
+function loadPartenairesAdminList(list) {
   const el = document.getElementById('partenairesAdminList');
   if (!el) return;
+  const items = list || partenaires;
 
-  if (!partenaires.length) {
-    el.innerHTML = '<p style="color:#aaa;">Aucun partenaire pour le moment.</p>';
+  if (!items.length) {
+    el.innerHTML = '<p style="color:#aaa;">Aucun partenaire trouvé.</p>';
     return;
   }
 
   const isFullAdmin = window._staffRole === 'admin';
 
-  el.innerHTML = partenaires.map(p => {
+  el.innerHTML = items.map(p => {
     const disabled = !p.id;
     const editStyle = disabled
       ? "background:none;border:none;color:#ddd;font-size:15px;padding:4px 6px;opacity:.5;cursor:not-allowed;"
@@ -5486,7 +5518,51 @@ function loadPartenairesAdminList() {
   }).join('');
 }
 
+function filterPartenairesAdmin() {
+  const kw = (document.getElementById('pt-search').value || '').toLowerCase().trim();
+  const from = document.getElementById('pt-date-from').value;
+  const to = document.getElementById('pt-date-to').value;
+
+  const filtered = partenaires.filter(p => {
+    const matchKw = !kw || (p.nom||'').toLowerCase().includes(kw) || (p.type||'').toLowerCase().includes(kw);
+    const matchDate = dateInRange(p.dateCreation, from, to);
+    return matchKw && matchDate;
+  });
+  loadPartenairesAdminList(filtered);
+}
+
+function resetPartenairesFilter() {
+  document.getElementById('pt-search').value = '';
+  document.getElementById('pt-date-from').value = '';
+  document.getElementById('pt-date-to').value = '';
+  loadPartenairesAdminList();
+}
+
 // ── COMPTES UTILISATEURS (gestion des rôles et accès) ──────────────────────────
+
+// ── Aide filtres date (format fr-FR "jj/mm/aaaa" ou "jj/mm/aaaa, hh:mm:ss") ──
+function parseFrDate(str) {
+  if (!str) return null;
+  const datePart = str.split(',')[0].trim();
+  const [j, m, a] = datePart.split('/').map(Number);
+  if (!j || !m || !a) return null;
+  return new Date(a, m - 1, j);
+}
+function dateInRange(dateStr, fromInputVal, toInputVal) {
+  if (!fromInputVal && !toInputVal) return true;
+  const d = parseFrDate(dateStr);
+  if (!d) return false;
+  if (fromInputVal) {
+    const from = new Date(fromInputVal);
+    if (d < from) return false;
+  }
+  if (toInputVal) {
+    const to = new Date(toInputVal);
+    to.setHours(23, 59, 59, 999);
+    if (d > to) return false;
+  }
+  return true;
+}
 
 function logStaffAction(action, cibleType, cibleNom, motif) {
   if (!window.logAction || !window._currentStaffInfo) return;
@@ -5567,44 +5643,77 @@ async function loadStaffList() {
   try {
     const staff = await window.getAllStaffAccounts();
     window._staffCache = staff;
-    if (!staff.length) {
-      el.innerHTML = '<p style="color:#aaa;">Aucun compte d\'équipe pour le moment.</p>';
-      return;
-    }
-    const isFullAdmin = window._staffRole === 'admin';
-    el.innerHTML = staff.map(s => {
-      const suspended = s.statut === 'suspendu';
-      const roleLabel = s.role === 'admin' ? '👑 Compte Admin' : '👤 Compte Collaborateur';
-      return `
-      <div id="staff-${s.id}" style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:8px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;font-size:13px;color:#111;">${s.nom || '(sans nom)'}</div>
-          ${s.email ? `<div style="font-size:11px;color:#888;">${s.email}</div>` : ''}
-          <div style="font-size:11px;font-weight:600;color:${s.role === 'admin' ? '#E8622A' : '#555'};margin-top:2px;">${roleLabel}</div>
-          ${s.dateCreation ? `<div style="font-size:10px;color:#aaa;margin-top:3px;">📅 Créé le ${s.dateCreation}</div>` : ''}
-        </div>
-        <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;${suspended ? 'background:rgba(163,45,45,.1);color:#A32D2D;' : 'background:rgba(46,125,70,.1);color:#2E7D46;'}">${suspended ? 'Suspendu' : 'Actif'}</span>
-        <button onclick="toggleStaffStatutHandler('${s.id}', '${suspended ? 'actif' : 'suspendu'}')"
-          style="padding:6px 12px;background:#fff;border:1.5px solid ${suspended ? '#2E7D46' : '#A32D2D'};color:${suspended ? '#2E7D46' : '#A32D2D'};border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
-          ${suspended ? '✓ Réactiver' : '⏸ Suspendre'}
-        </button>
-        ${isFullAdmin ? `
-        <button onclick="deleteStaffHandler('${s.id}', '${(s.nom||'').replace(/'/g,"\\'")}')" title="Supprimer"
-          style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;"
-          onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>` : ''}
-      </div>`;
-    }).join('');
+    renderStaffRows(staff);
   } catch(err) {
     el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
   }
 }
 
-function loadComptesEntList() {
-  const el = document.getElementById('cptEntList');
-  const withAccount = entreprises.filter(e => e.ownerUid);
+function renderStaffRows(staff) {
+  const el = document.getElementById('cptStaffList');
+  if (!staff.length) {
+    el.innerHTML = '<p style="color:#aaa;">Aucun compte d\'équipe trouvé.</p>';
+    return;
+  }
+  const isFullAdmin = window._staffRole === 'admin';
+  el.innerHTML = staff.map(s => {
+    const suspended = s.statut === 'suspendu';
+    const roleLabel = s.role === 'admin' ? '👑 Compte Admin' : '👤 Compte Collaborateur';
+    return `
+    <div id="staff-${s.id}" style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:8px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:13px;color:#111;">${s.nom || '(sans nom)'}</div>
+        ${s.email ? `<div style="font-size:11px;color:#888;">${s.email}</div>` : ''}
+        <div style="font-size:11px;font-weight:600;color:${s.role === 'admin' ? '#E8622A' : '#555'};margin-top:2px;">${roleLabel}</div>
+        ${s.dateCreation ? `<div style="font-size:10px;color:#aaa;margin-top:3px;">📅 Créé le ${s.dateCreation}</div>` : ''}
+      </div>
+      <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;${suspended ? 'background:rgba(163,45,45,.1);color:#A32D2D;' : 'background:rgba(46,125,70,.1);color:#2E7D46;'}">${suspended ? 'Suspendu' : 'Actif'}</span>
+      <button onclick="toggleStaffStatutHandler('${s.id}', '${suspended ? 'actif' : 'suspendu'}')"
+        style="padding:6px 12px;background:#fff;border:1.5px solid ${suspended ? '#2E7D46' : '#A32D2D'};color:${suspended ? '#2E7D46' : '#A32D2D'};border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">
+        ${suspended ? '✓ Réactiver' : '⏸ Suspendre'}
+      </button>
+      ${isFullAdmin ? `
+      <button onclick="deleteStaffHandler('${s.id}', '${(s.nom||'').replace(/'/g,"\\'")}')" title="Supprimer"
+        style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;"
+        onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>` : ''}
+    </div>`;
+  }).join('');
+}
 
+function filterStaffList() {
+  const kw = (document.getElementById('staff-search').value || '').toLowerCase().trim();
+  const from = document.getElementById('staff-date-from').value;
+  const to = document.getElementById('staff-date-to').value;
+  const staff = window._staffCache || [];
+
+  const filtered = staff.filter(s => {
+    const matchKw = !kw ||
+      (s.nom||'').toLowerCase().includes(kw) ||
+      (s.email||'').toLowerCase().includes(kw) ||
+      (s.role||'').toLowerCase().includes(kw);
+    const matchDate = dateInRange(s.dateCreation, from, to);
+    return matchKw && matchDate;
+  });
+  renderStaffRows(filtered);
+}
+
+function resetStaffFilter() {
+  document.getElementById('staff-search').value = '';
+  document.getElementById('staff-date-from').value = '';
+  document.getElementById('staff-date-to').value = '';
+  renderStaffRows(window._staffCache || []);
+}
+
+function loadComptesEntList() {
+  const withAccount = entreprises.filter(e => e.ownerUid);
+  window._comptesEntCache = withAccount;
+  renderComptesEntRows(withAccount);
+}
+
+function renderComptesEntRows(withAccount) {
+  const el = document.getElementById('cptEntList');
   if (!withAccount.length) {
-    el.innerHTML = '<p style="color:#aaa;">Aucune entreprise n\'a encore de compte de connexion.</p>';
+    el.innerHTML = '<p style="color:#aaa;">Aucune entreprise trouvée.</p>';
     return;
   }
 
@@ -5632,6 +5741,27 @@ function loadComptesEntList() {
         onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🔓</button>
     </div>`;
   }).join('');
+}
+
+function filterComptesEntList() {
+  const kw = (document.getElementById('ent-cpt-search').value || '').toLowerCase().trim();
+  const from = document.getElementById('ent-cpt-date-from').value;
+  const to = document.getElementById('ent-cpt-date-to').value;
+  const list = window._comptesEntCache || [];
+
+  const filtered = list.filter(e => {
+    const matchKw = !kw || (e.nom||'').toLowerCase().includes(kw) || (e.email||'').toLowerCase().includes(kw);
+    const matchDate = dateInRange(e.dateCompte, from, to);
+    return matchKw && matchDate;
+  });
+  renderComptesEntRows(filtered);
+}
+
+function resetComptesEntFilter() {
+  document.getElementById('ent-cpt-search').value = '';
+  document.getElementById('ent-cpt-date-from').value = '';
+  document.getElementById('ent-cpt-date-to').value = '';
+  renderComptesEntRows(window._comptesEntCache || []);
 }
 
 async function createStaffHandler() {
@@ -5861,6 +5991,18 @@ async function migrateProduitsHandler(entNom) {
 }
 
 // ── HISTORIQUE DES ACTIONS (journal d'audit) ────────────────────────────────────
+const HISTORIQUE_ACTION_META = {
+  suppression:  { icon: '🗑️', label: 'a supprimé', color: '#A32D2D' },
+  suspension:   { icon: '⏸',  label: 'a suspendu', color: '#A32D2D' },
+  reactivation: { icon: '✓',  label: 'a réactivé',  color: '#2E7D46' },
+  modification: { icon: '✏️', label: 'a modifié',   color: '#555' },
+};
+const HISTORIQUE_CIBLE_LABELS = {
+  entreprise: 'l\'entreprise', partenaire: 'le partenaire',
+  compte_staff: 'le compte équipe', compte_entreprise: 'le compte entreprise',
+  produit: 'le produit', demande: 'la demande'
+};
+
 async function loadHistoriqueTab() {
   const el = document.getElementById('historiqueList');
   if (!el) return;
@@ -5873,41 +6015,60 @@ async function loadHistoriqueTab() {
 
   try {
     const logs = await window.getActionsLog();
-    if (!logs.length) {
-      el.innerHTML = '<p style="color:#aaa;">Aucune action enregistrée pour le moment.</p>';
-      return;
-    }
-
-    const actionMeta = {
-      suppression:  { icon: '🗑️', label: 'a supprimé', color: '#A32D2D' },
-      suspension:   { icon: '⏸',  label: 'a suspendu', color: '#A32D2D' },
-      reactivation: { icon: '✓',  label: 'a réactivé',  color: '#2E7D46' },
-      modification: { icon: '✏️', label: 'a modifié',   color: '#555' },
-    };
-    const cibleLabels = {
-      entreprise: 'l\'entreprise', partenaire: 'le partenaire',
-      compte_staff: 'le compte équipe', compte_entreprise: 'le compte entreprise',
-      produit: 'le produit', demande: 'la demande'
-    };
-
-    el.innerHTML = logs.map(l => {
-      const meta = actionMeta[l.action] || { icon: '•', label: l.action, color: '#888' };
-      const cibleLabel = cibleLabels[l.cibleType] || l.cibleType || '';
-      const roleTag = l.auteurRole === 'admin' ? '👑 Admin' : '👤 Collaborateur';
-      return `
-      <div style="background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:10px;border:1px solid #eee;border-left:3px solid ${meta.color};">
-        <div style="font-size:13px;color:#111;">
-          <strong>${l.auteurNom || l.auteurEmail || 'Quelqu\'un'}</strong>
-          <span style="color:${meta.color};font-weight:600;"> ${meta.icon} ${meta.label} </span>
-          ${cibleLabel} <strong>"${l.cibleNom || ''}"</strong>
-        </div>
-        ${l.motif ? `<div style="font-size:12px;color:#666;margin-top:6px;font-style:italic;">💬 "${l.motif}"</div>` : ''}
-        <div style="font-size:10px;color:#aaa;margin-top:8px;">${roleTag} · ${l.dateAffichage || ''}</div>
-      </div>`;
-    }).join('');
+    window._historiqueCache = logs;
+    renderHistoriqueRows(logs);
   } catch(err) {
     el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement de l\'historique.</p>';
   }
+}
+
+function renderHistoriqueRows(logs) {
+  const el = document.getElementById('historiqueList');
+  if (!logs.length) {
+    el.innerHTML = '<p style="color:#aaa;">Aucune action trouvée.</p>';
+    return;
+  }
+  el.innerHTML = logs.map(l => {
+    const meta = HISTORIQUE_ACTION_META[l.action] || { icon: '•', label: l.action, color: '#888' };
+    const cibleLabel = HISTORIQUE_CIBLE_LABELS[l.cibleType] || l.cibleType || '';
+    const roleTag = l.auteurRole === 'admin' ? '👑 Admin' : '👤 Collaborateur';
+    return `
+    <div style="background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:10px;border:1px solid #eee;border-left:3px solid ${meta.color};">
+      <div style="font-size:13px;color:#111;">
+        <strong>${l.auteurNom || l.auteurEmail || 'Quelqu\'un'}</strong>
+        <span style="color:${meta.color};font-weight:600;"> ${meta.icon} ${meta.label} </span>
+        ${cibleLabel} <strong>"${l.cibleNom || ''}"</strong>
+      </div>
+      ${l.motif ? `<div style="font-size:12px;color:#666;margin-top:6px;font-style:italic;">💬 "${l.motif}"</div>` : ''}
+      <div style="font-size:10px;color:#aaa;margin-top:8px;">${roleTag} · ${l.dateAffichage || ''}</div>
+    </div>`;
+  }).join('');
+}
+
+function filterHistorique() {
+  const kw = (document.getElementById('hist-search').value || '').toLowerCase().trim();
+  const from = document.getElementById('hist-date-from').value;
+  const to = document.getElementById('hist-date-to').value;
+  const logs = window._historiqueCache || [];
+
+  const filtered = logs.filter(l => {
+    const matchKw = !kw ||
+      (l.auteurNom||'').toLowerCase().includes(kw) ||
+      (l.auteurEmail||'').toLowerCase().includes(kw) ||
+      (l.cibleNom||'').toLowerCase().includes(kw) ||
+      (l.motif||'').toLowerCase().includes(kw) ||
+      (l.action||'').toLowerCase().includes(kw);
+    const matchDate = dateInRange(l.dateAffichage, from, to);
+    return matchKw && matchDate;
+  });
+  renderHistoriqueRows(filtered);
+}
+
+function resetHistoriqueFilter() {
+  document.getElementById('hist-search').value = '';
+  document.getElementById('hist-date-from').value = '';
+  document.getElementById('hist-date-to').value = '';
+  renderHistoriqueRows(window._historiqueCache || []);
 }
 
 // Close on Escape
@@ -6312,6 +6473,24 @@ function trackRecherche(terme) {
     <!-- Tab LIST -->
     <div id="panelList" style="padding:28px; display:none;">
       <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:16px;">Entreprises enregistrées</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:end;">
+        <div style="flex:1;min-width:160px;">
+          <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">RECHERCHER</label>
+          <input id="al-search" type="text" placeholder="Nom, secteur, ville..." oninput="filterAdminList()"
+            style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">DU</label>
+          <input id="al-date-from" type="date" onchange="filterAdminList()"
+            style="padding:9px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">AU</label>
+          <input id="al-date-to" type="date" onchange="filterAdminList()"
+            style="padding:9px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+        </div>
+        <button onclick="resetAdminListFilter()" style="padding:9px 14px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;color:#888;cursor:pointer;">✕ Réinitialiser</button>
+      </div>
       <div id="adminList" style="font-size:13px; color:#888;">Chargement...</div>
     </div>
 
@@ -6568,6 +6747,24 @@ function trackRecherche(terme) {
 
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid #eee;">
         <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:14px;">Partenaires actuels</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:end;">
+          <div style="flex:1;min-width:160px;">
+            <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">RECHERCHER</label>
+            <input id="pt-search" type="text" placeholder="Nom, type..." oninput="filterPartenairesAdmin()"
+              style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+          </div>
+          <div>
+            <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">DU</label>
+            <input id="pt-date-from" type="date" onchange="filterPartenairesAdmin()"
+              style="padding:9px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+          </div>
+          <div>
+            <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">AU</label>
+            <input id="pt-date-to" type="date" onchange="filterPartenairesAdmin()"
+              style="padding:9px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+          </div>
+          <button onclick="resetPartenairesFilter()" style="padding:9px 14px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;color:#888;cursor:pointer;">✕ Réinitialiser</button>
+        </div>
         <div id="partenairesAdminList" style="font-size:13px;color:#888;">Chargement...</div>
       </div>
     </div>
@@ -6646,6 +6843,24 @@ function trackRecherche(terme) {
       <!-- Liste ÉQUIPE -->
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid #eee;">
         <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:14px;">Équipe VISUUUM 224</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:end;">
+          <div style="flex:1;min-width:160px;">
+            <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">RECHERCHER</label>
+            <input id="staff-search" type="text" placeholder="Nom, email, rôle..." oninput="filterStaffList()"
+              style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+          </div>
+          <div>
+            <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">DU</label>
+            <input id="staff-date-from" type="date" onchange="filterStaffList()"
+              style="padding:9px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+          </div>
+          <div>
+            <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">AU</label>
+            <input id="staff-date-to" type="date" onchange="filterStaffList()"
+              style="padding:9px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+          </div>
+          <button onclick="resetStaffFilter()" style="padding:9px 14px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;color:#888;cursor:pointer;">✕ Réinitialiser</button>
+        </div>
         <div id="cptStaffList" style="font-size:13px;color:#888;">Chargement...</div>
       </div>
 
@@ -6653,6 +6868,24 @@ function trackRecherche(terme) {
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid #eee;">
         <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:6px;">Comptes entreprises</div>
         <div style="font-size:12px;color:#888;margin-bottom:14px;">Suspendre un compte bloque son accès à son espace, sans toucher à sa fiche publique dans l'annuaire.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:end;">
+          <div style="flex:1;min-width:160px;">
+            <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">RECHERCHER</label>
+            <input id="ent-cpt-search" type="text" placeholder="Nom, email..." oninput="filterComptesEntList()"
+              style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+          </div>
+          <div>
+            <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">DU</label>
+            <input id="ent-cpt-date-from" type="date" onchange="filterComptesEntList()"
+              style="padding:9px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+          </div>
+          <div>
+            <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">AU</label>
+            <input id="ent-cpt-date-to" type="date" onchange="filterComptesEntList()"
+              style="padding:9px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+          </div>
+          <button onclick="resetComptesEntFilter()" style="padding:9px 14px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;color:#888;cursor:pointer;">✕ Réinitialiser</button>
+        </div>
         <div id="cptEntList" style="font-size:13px;color:#888;">Chargement...</div>
       </div>
     </div>
@@ -6661,6 +6894,24 @@ function trackRecherche(terme) {
     <div id="panelHistorique" style="padding:28px; display:none;">
       <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:6px;">Historique des actions</div>
       <div style="font-size:12px; color:#888; margin-bottom:20px;">Journal des suppressions, suspensions, réactivations et modifications effectuées par l'équipe. Cet historique ne peut pas être modifié ou effacé.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:end;">
+        <div style="flex:1;min-width:160px;">
+          <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">RECHERCHER</label>
+          <input id="hist-search" type="text" placeholder="Auteur, cible, motif..." oninput="filterHistorique()"
+            style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">DU</label>
+          <input id="hist-date-from" type="date" onchange="filterHistorique()"
+            style="padding:9px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">AU</label>
+          <input id="hist-date-to" type="date" onchange="filterHistorique()"
+            style="padding:9px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+        </div>
+        <button onclick="resetHistoriqueFilter()" style="padding:9px 14px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;color:#888;cursor:pointer;">✕ Réinitialiser</button>
+      </div>
       <div id="historiqueList" style="font-size:13px;color:#888;">Chargement...</div>
     </div>
 
