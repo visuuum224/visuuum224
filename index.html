@@ -1372,6 +1372,7 @@ footer {
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body>
 
@@ -3560,45 +3561,107 @@ async function adminAddEntreprise() {
 // ── IMPORT FICHIER ────────────────────────────────────────────────────────────
 let importData = [];
 
-function downloadTemplate() {
-  // Générer un vrai fichier XLSX avec SheetJS
-  const wb = XLSX.utils.book_new();
+async function downloadTemplate() {
+  const SECTEURS = [
+    "🌾 Agriculture & Agroalimentaire", "🛍️ Commerce & Vente", "🧵 Artisanat & Mode",
+    "🏗️ BTP & Immobilier", "🍽️ Restauration & Food", "💊 Santé & Beauté",
+    "💻 Tech & Numérique", "🏦 Finance & Banque", "⛏️ Mines & Ressources",
+    "⚡ Énergie", "🚚 Transport & Logistique", "🎓 Éducation & Formation"
+  ];
+  const TAGS = ["Agriculture","Commerce","Artisanat","BTP","Restauration","Santé","Tech","Finance","Mines","Énergie","Transport","Éducation"];
+  const REGIONS_NAT = ["Guinée Maritime","Fouta Djallon","Haute Guinée","Guinée Forestière"];
+  const REGIONS_ADMIN = ["Conakry","Kindia","Boké","Labé","Mamou","Kankan","Faranah","N'Zérékoré"];
 
-  // Feuille GUIDE
-  const guideData = [
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "VISUUUM 224";
+
+  // ── Feuille GUIDE ──
+  const wsGuide = wb.addWorksheet("📋 Guide");
+  wsGuide.columns = [{width:16},{width:14},{width:34},{width:28},{width:60}];
+  const guideRows = [
     ["VISUUUM 224 — Modèle Import Entreprises"],
     [],
     ["COLONNE", "OBLIGATOIRE ?", "DESCRIPTION", "EXEMPLE", "VALEURS POSSIBLES"],
     ["nom", "✅ OUI", "Nom officiel de l'entreprise", "Café Macenta SARL", "Texte libre"],
     ["responsable", "✅ OUI", "Prénom et nom du dirigeant", "Mamadou Diallo", "Texte libre"],
-    ["secteur", "✅ OUI", "Secteur d'activité principal", "🌾 Agriculture & Agroalimentaire", "🌾 Agriculture & Agroalimentaire | 🛍️ Commerce & Vente | 🧵 Artisanat & Mode | 🏗️ BTP & Immobilier | 🍽️ Restauration & Food | 💊 Santé & Beauté | 💻 Tech & Numérique | 🏦 Finance & Banque | ⛏️ Mines & Ressources | ⚡ Énergie | 🚚 Transport & Logistique | 🎓 Éducation & Formation"],
-    ["tag", "✅ OUI", "Tag court pour les filtres", "Agriculture", "Agriculture | Commerce | Artisanat | BTP | Restauration | Santé | Tech | Finance | Mines | Énergie"],
+    ["secteur", "✅ OUI", "Secteur d'activité principal (liste déroulante colonne C)", SECTEURS[0], SECTEURS.join(" | ")],
+    ["tag", "✅ OUI", "Tag court pour les filtres (liste déroulante colonne D)", TAGS[0], TAGS.join(" | ")],
     ["ville", "✅ OUI", "Ville ou quartier principal", "Conakry, Kaloum", "Texte libre"],
     ["wa", "✅ OUI", "Numéro WhatsApp avec indicatif pays", "+224 620 00 00 00", "+224XXXXXXXXX"],
     ["desc", "✅ OUI", "Description de l'activité (2-3 phrases)", "Café arabica de haute qualité cultivé en altitude.", "Texte libre (max 300 caractères)"],
     ["produits", "✅ OUI", "Produits / services proposés, séparés par des virgules", "Café de Macenta, Café torréfié, Livraison à domicile", "Texte libre, séparé par des virgules"],
     ["email", "✅ OUI", "Adresse email de contact", "contact@cafe-macenta.com", "email@domaine.com"],
-    ["region_nat", "⬜ OPTIONNEL", "Région naturelle de Guinée", "Guinée Maritime", "Guinée Maritime | Fouta Djallon | Haute Guinée | Guinée Forestière"],
-    ["region_admin", "⬜ OPTIONNEL", "Région administrative", "Conakry", "Conakry | Kindia | Boké | Labé | Mamou | Kankan | Faranah | N'Zérékoré"],
+    ["region_nat", "⬜ OPTIONNEL", "Région naturelle de Guinée (liste déroulante colonne J)", REGIONS_NAT[0], REGIONS_NAT.join(" | ")],
+    ["region_admin", "⬜ OPTIONNEL", "Région administrative (liste déroulante colonne K)", REGIONS_ADMIN[0], REGIONS_ADMIN.join(" | ")],
     ["lat", "⬜ OPTIONNEL", "Latitude GPS (voir coordonnées Google Maps)", "9.5370", "Nombre décimal"],
     ["lng", "⬜ OPTIONNEL", "Longitude GPS (voir coordonnées Google Maps)", "-13.6773", "Nombre décimal"],
     ["logo", "⬜ OPTIONNEL", "Lien URL vers une image de logo/photo déjà hébergée en ligne", "https://exemple.com/logo.png", "URL d'image (https://...)"],
     ["emoji", "⬜ OPTIONNEL", "Emoji représentant l'activité (1 seul)", "☕", "Tout emoji"],
   ];
-  const wsGuide = XLSX.utils.aoa_to_sheet(guideData);
-  wsGuide['!cols'] = [{wch:16},{wch:14},{wch:34},{wch:28},{wch:60}];
-  XLSX.utils.book_append_sheet(wb, wsGuide, "📋 Guide");
+  guideRows.forEach(r => wsGuide.addRow(r));
+  wsGuide.getRow(1).font = { bold: true, size: 14 };
+  wsGuide.getRow(3).font = { bold: true };
 
-  // Feuille IMPORT
-  const importData = [
-    ["nom *", "responsable *", "secteur *", "tag *", "ville *", "wa *", "desc *", "produits *", "email *", "region_nat", "region_admin", "lat", "lng", "logo", "emoji"],
-    ["Café Macenta SARL", "Mamadou Diallo", "🌾 Agriculture & Agroalimentaire", "Agriculture", "Macenta", "+224620000000", "Café arabica de haute qualité cultivé en altitude dans la région forestière.", "Café de Macenta, Café torréfié, Livraison à domicile", "cafe@macenta.com", "Haute Guinée", "Kankan", "9.5370", "-13.6773", "", "☕"],
+  // ── Feuille IMPORT (avec listes déroulantes) ──
+  const wsImport = wb.addWorksheet("📥 Import Entreprises");
+  wsImport.columns = [
+    {header:"nom *", width:28}, {header:"responsable *", width:24}, {header:"secteur *", width:32},
+    {header:"tag *", width:16}, {header:"ville *", width:22}, {header:"wa *", width:22},
+    {header:"desc *", width:50}, {header:"produits *", width:40}, {header:"email *", width:28},
+    {header:"region_nat", width:22}, {header:"region_admin", width:22},
+    {header:"lat", width:12}, {header:"lng", width:12}, {header:"logo", width:28}, {header:"emoji", width:8}
   ];
-  const wsImport = XLSX.utils.aoa_to_sheet(importData);
-  wsImport['!cols'] = [{wch:28},{wch:24},{wch:30},{wch:16},{wch:22},{wch:22},{wch:50},{wch:40},{wch:28},{wch:22},{wch:22},{wch:12},{wch:12},{wch:28},{wch:8}];
-  XLSX.utils.book_append_sheet(wb, wsImport, "📥 Import Entreprises");
+  wsImport.getRow(1).font = { bold: true };
+  wsImport.addRow([
+    "Café Macenta SARL", "Mamadou Diallo", SECTEURS[0], TAGS[0], "Macenta", "+224620000000",
+    "Café arabica de haute qualité cultivé en altitude dans la région forestière.",
+    "Café de Macenta, Café torréfié, Livraison à domicile", "cafe@macenta.com",
+    "Haute Guinée", "Kankan", 9.5370, -13.6773, "", "☕"
+  ]);
 
-  XLSX.writeFile(wb, 'visuuum224_modele_entreprises.xlsx');
+  // ── Feuille cachée contenant les listes (source des menus déroulants) ──
+  const wsListes = wb.addWorksheet("Listes");
+  wsListes.state = 'veryHidden';
+  SECTEURS.forEach((v, i) => wsListes.getCell(`A${i+1}`).value = v);
+  TAGS.forEach((v, i) => wsListes.getCell(`B${i+1}`).value = v);
+  REGIONS_NAT.forEach((v, i) => wsListes.getCell(`C${i+1}`).value = v);
+  REGIONS_ADMIN.forEach((v, i) => wsListes.getCell(`D${i+1}`).value = v);
+
+  // ── Menus déroulants sur 200 lignes (secteur=C, tag=D, region_nat=J, region_admin=K) ──
+  const MAX_ROWS = 200;
+  for (let row = 2; row <= MAX_ROWS; row++) {
+    wsImport.getCell(`C${row}`).dataValidation = {
+      type: 'list', allowBlank: false, showErrorMessage: true,
+      formulae: [`Listes!$A$1:$A$${SECTEURS.length}`],
+      errorTitle: 'Secteur invalide', error: 'Merci de choisir un secteur dans la liste.'
+    };
+    wsImport.getCell(`D${row}`).dataValidation = {
+      type: 'list', allowBlank: false, showErrorMessage: true,
+      formulae: [`Listes!$B$1:$B$${TAGS.length}`],
+      errorTitle: 'Tag invalide', error: 'Merci de choisir un tag dans la liste.'
+    };
+    wsImport.getCell(`J${row}`).dataValidation = {
+      type: 'list', allowBlank: true, showErrorMessage: true,
+      formulae: [`Listes!$C$1:$C$${REGIONS_NAT.length}`],
+      errorTitle: 'Région invalide', error: 'Merci de choisir une région dans la liste.'
+    };
+    wsImport.getCell(`K${row}`).dataValidation = {
+      type: 'list', allowBlank: true, showErrorMessage: true,
+      formulae: [`Listes!$D$1:$D$${REGIONS_ADMIN.length}`],
+      errorTitle: 'Région invalide', error: 'Merci de choisir une région dans la liste.'
+    };
+  }
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'visuuum224_modele_entreprises.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function handleDrop(event) {
