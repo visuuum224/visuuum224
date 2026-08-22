@@ -5140,7 +5140,9 @@ function resetPartenaireForm() {
   document.getElementById('pt-logo-file').value = '';
   document.getElementById('pt-logo-preview').style.display = 'none';
   document.getElementById('pt-logo-img').src = '';
-  document.getElementById('pt-save-btn').textContent = '✦ Ajouter le partenaire';
+  const btn = document.getElementById('pt-save-btn');
+  btn.textContent = '✦ Ajouter le partenaire';
+  btn.disabled = false;
   const msg = document.getElementById('pt-msg');
   msg.style.display = 'none';
 }
@@ -5218,7 +5220,8 @@ function editPartenaireHandler(id) {
   }
   document.getElementById('pt-save-btn').textContent = '✦ Enregistrer les modifications';
   document.getElementById('pt-save-btn').disabled = false;
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  const dashEl = document.getElementById('adminDash');
+  if (dashEl) dashEl.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 async function deletePartenaireHandler(id, nom) {
@@ -5250,21 +5253,27 @@ function loadPartenairesAdminList() {
     return;
   }
 
-  el.innerHTML = partenaires.map(p => `
+  el.innerHTML = partenaires.map(p => {
+    const disabled = !p.id;
+    const editStyle = disabled
+      ? "background:none;border:none;color:#ddd;font-size:15px;padding:4px 6px;opacity:.5;cursor:not-allowed;"
+      : "background:none;border:none;color:#ccc;cursor:pointer;font-size:15px;padding:4px 6px;";
+    return `
     <div id="pt-admin-${p.id || p.nom}" style="background:#fff;border-radius:8px;padding:10px 14px;margin-bottom:8px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
       ${p.logo ? `<img src="${p.logo}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;">` : `<span style="font-size:20px;">${p.emoji || '🤝'}</span>`}
       <div style="flex:1;min-width:0;">
         <div style="font-weight:700;font-size:13px;color:#111;">${p.nom}</div>
         <div style="font-size:11px;color:#888;">${p.type || ''}</div>
       </div>
-      <button onclick="editPartenaireHandler('${p.id || ''}')" title="Modifier" ${!p.id ? 'disabled style="opacity:.3;cursor:not-allowed;"' : ''}
-        style="background:none;border:none;color:#ccc;cursor:pointer;font-size:15px;padding:4px 6px;"
-        onmouseover="this.style.color='#E8622A'" onmouseout="this.style.color='#ccc'">✏️</button>
-      <button onclick="deletePartenaireHandler('${p.id || ''}', '${(p.nom||'').replace(/'/g,"\\'")}')" title="Supprimer"
+      <button type="button" onclick="editPartenaireHandler('${p.id || ''}')" title="${disabled ? 'Partenaire par défaut — non modifiable' : 'Modifier'}" ${disabled ? 'disabled' : ''}
+        style="${editStyle}"
+        ${disabled ? '' : `onmouseover="this.style.color='#E8622A'" onmouseout="this.style.color='#ccc'"`}>✏️</button>
+      <button type="button" onclick="deletePartenaireHandler('${p.id || ''}', '${(p.nom||'').replace(/'/g,"\\'")}')" title="Supprimer"
         style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;"
         onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 // Close on Escape
