@@ -4499,19 +4499,19 @@ async function loadAdminList() {
   try {
     const data = await window.getEntreprisesFromFirestore();
     window._adminEntCache = data;
-    renderAdminListRows(data);
+    registerPaginatedList('adminList', data, renderAdminListPage);
   } catch(err) {
     listEl.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
   }
 }
 
-function renderAdminListRows(data) {
+function renderAdminListPage(pageItems, total, page) {
   const listEl = document.getElementById('adminList');
-  if (!data.length) {
+  if (!total) {
     listEl.innerHTML = '<p style="color:#888;">Aucune entreprise trouvée.</p>';
     return;
   }
-  listEl.innerHTML = data.map((e, i) => `
+  listEl.innerHTML = pageItems.map((e, i) => `
       <div id="admin-ent-${e.id}" style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:10px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
         <span style="font-size:22px;">${e.emoji || '🏢'}</span>
         <div style="flex:1;">
@@ -4527,7 +4527,7 @@ function renderAdminListRows(data) {
           style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;transition:.15s;"
           onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>
       </div>
-  `).join('');
+  `).join('') + paginationControlsHtml('adminList', total);
 }
 
 function filterAdminList() {
@@ -4545,14 +4545,14 @@ function filterAdminList() {
     const matchDate = dateInRange(e.dateAjout, from, to) || dateInRange(e.dateDemande, from, to);
     return matchKw && matchDate;
   });
-  renderAdminListRows(filtered);
+  registerPaginatedList('adminList', filtered, renderAdminListPage);
 }
 
 function resetAdminListFilter() {
   document.getElementById('al-search').value = '';
   document.getElementById('al-date-from').value = '';
   document.getElementById('al-date-to').value = '';
-  renderAdminListRows(window._adminEntCache || []);
+  registerPaginatedList('adminList', window._adminEntCache || [], renderAdminListPage);
 }
 
 async function supprimerEntreprise(id, nom) {
@@ -5485,15 +5485,19 @@ function loadPartenairesAdminList(list) {
   const el = document.getElementById('partenairesAdminList');
   if (!el) return;
   const items = list || partenaires;
+  registerPaginatedList('partenaires', items, renderPartenairesPage);
+}
 
-  if (!items.length) {
+function renderPartenairesPage(pageItems, total, page) {
+  const el = document.getElementById('partenairesAdminList');
+  if (!total) {
     el.innerHTML = '<p style="color:#aaa;">Aucun partenaire trouvé.</p>';
     return;
   }
 
   const isFullAdmin = window._staffRole === 'admin';
 
-  el.innerHTML = items.map(p => {
+  el.innerHTML = pageItems.map(p => {
     const disabled = !p.id;
     const editStyle = disabled
       ? "background:none;border:none;color:#ddd;font-size:15px;padding:4px 6px;opacity:.5;cursor:not-allowed;"
@@ -5515,7 +5519,7 @@ function loadPartenairesAdminList(list) {
         onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>` : ''}
     </div>
   `;
-  }).join('');
+  }).join('') + paginationControlsHtml('partenaires', total);
 }
 
 function filterPartenairesAdmin() {
@@ -5562,6 +5566,52 @@ function dateInRange(dateStr, fromInputVal, toInputVal) {
     if (d > to) return false;
   }
   return true;
+}
+
+// ── Pagination générique (réutilisée par Partenaires, Liste des entreprises,
+// Historique, et les 2 sous-listes de Comptes) ──
+const PAGE_SIZE = 10;
+window._paginationState = window._paginationState || {};
+
+// Enregistre une nouvelle liste (filtrée ou non) pour une clé donnée, et revient à la page 1.
+function registerPaginatedList(key, data, renderFn) {
+  window._paginationState[key] = { page: 1, data, renderFn };
+  renderPaginatedList(key);
+}
+
+// Réaffiche la page courante pour une clé donnée (sans changer les données).
+function renderPaginatedList(key) {
+  const state = window._paginationState[key];
+  if (!state) return;
+  const start = (state.page - 1) * PAGE_SIZE;
+  const pageItems = state.data.slice(start, start + PAGE_SIZE);
+  state.renderFn(pageItems, state.data.length, state.page);
+}
+
+// Change de page pour une clé donnée.
+function goToPage(key, page) {
+  const state = window._paginationState[key];
+  if (!state) return;
+  const totalPages = Math.max(1, Math.ceil(state.data.length / PAGE_SIZE));
+  if (page < 1 || page > totalPages) return;
+  state.page = page;
+  renderPaginatedList(key);
+}
+
+// Génère le HTML des contrôles Précédent/Suivant pour une clé donnée.
+function paginationControlsHtml(key, totalItems) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  if (totalPages <= 1) return '';
+  const state = window._paginationState[key];
+  const page = state ? state.page : 1;
+  return `
+    <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px;padding-top:16px;border-top:1px solid #f0f0f0;">
+      <button onclick="goToPage('${key}', ${page - 1})" ${page <= 1 ? 'disabled' : ''}
+        style="padding:7px 14px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:600;color:#555;cursor:pointer;${page <= 1 ? 'opacity:.35;cursor:not-allowed;' : ''}">‹ Précédent</button>
+      <span style="font-size:12px;color:#888;font-weight:600;">Page ${page} / ${totalPages}</span>
+      <button onclick="goToPage('${key}', ${page + 1})" ${page >= totalPages ? 'disabled' : ''}
+        style="padding:7px 14px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:600;color:#555;cursor:pointer;${page >= totalPages ? 'opacity:.35;cursor:not-allowed;' : ''}">Suivant ›</button>
+    </div>`;
 }
 
 function logStaffAction(action, cibleType, cibleNom, motif) {
@@ -5643,20 +5693,20 @@ async function loadStaffList() {
   try {
     const staff = await window.getAllStaffAccounts();
     window._staffCache = staff;
-    renderStaffRows(staff);
+    registerPaginatedList('staff', staff, renderStaffPage);
   } catch(err) {
     el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
   }
 }
 
-function renderStaffRows(staff) {
+function renderStaffPage(pageItems, total, page) {
   const el = document.getElementById('cptStaffList');
-  if (!staff.length) {
+  if (!total) {
     el.innerHTML = '<p style="color:#aaa;">Aucun compte d\'équipe trouvé.</p>';
     return;
   }
   const isFullAdmin = window._staffRole === 'admin';
-  el.innerHTML = staff.map(s => {
+  el.innerHTML = pageItems.map(s => {
     const suspended = s.statut === 'suspendu';
     const roleLabel = s.role === 'admin' ? '👑 Compte Admin' : '👤 Compte Collaborateur';
     return `
@@ -5677,7 +5727,7 @@ function renderStaffRows(staff) {
         style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;"
         onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>` : ''}
     </div>`;
-  }).join('');
+  }).join('') + paginationControlsHtml('staff', total);
 }
 
 function filterStaffList() {
@@ -5694,30 +5744,30 @@ function filterStaffList() {
     const matchDate = dateInRange(s.dateCreation, from, to);
     return matchKw && matchDate;
   });
-  renderStaffRows(filtered);
+  registerPaginatedList('staff', filtered, renderStaffPage);
 }
 
 function resetStaffFilter() {
   document.getElementById('staff-search').value = '';
   document.getElementById('staff-date-from').value = '';
   document.getElementById('staff-date-to').value = '';
-  renderStaffRows(window._staffCache || []);
+  registerPaginatedList('staff', window._staffCache || [], renderStaffPage);
 }
 
 function loadComptesEntList() {
   const withAccount = entreprises.filter(e => e.ownerUid);
   window._comptesEntCache = withAccount;
-  renderComptesEntRows(withAccount);
+  registerPaginatedList('comptesEnt', withAccount, renderComptesEntPage);
 }
 
-function renderComptesEntRows(withAccount) {
+function renderComptesEntPage(pageItems, total, page) {
   const el = document.getElementById('cptEntList');
-  if (!withAccount.length) {
+  if (!total) {
     el.innerHTML = '<p style="color:#aaa;">Aucune entreprise trouvée.</p>';
     return;
   }
 
-  el.innerHTML = withAccount.map(e => {
+  el.innerHTML = pageItems.map(e => {
     const suspended = e.statut === 'suspendu';
     return `
     <div id="ent-cpt-${e.id}" style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:8px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
@@ -5740,7 +5790,7 @@ function renderComptesEntRows(withAccount) {
         style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;"
         onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🔓</button>
     </div>`;
-  }).join('');
+  }).join('') + paginationControlsHtml('comptesEnt', total);
 }
 
 function filterComptesEntList() {
@@ -5754,14 +5804,14 @@ function filterComptesEntList() {
     const matchDate = dateInRange(e.dateCompte, from, to);
     return matchKw && matchDate;
   });
-  renderComptesEntRows(filtered);
+  registerPaginatedList('comptesEnt', filtered, renderComptesEntPage);
 }
 
 function resetComptesEntFilter() {
   document.getElementById('ent-cpt-search').value = '';
   document.getElementById('ent-cpt-date-from').value = '';
   document.getElementById('ent-cpt-date-to').value = '';
-  renderComptesEntRows(window._comptesEntCache || []);
+  registerPaginatedList('comptesEnt', window._comptesEntCache || [], renderComptesEntPage);
 }
 
 async function createStaffHandler() {
@@ -6016,19 +6066,19 @@ async function loadHistoriqueTab() {
   try {
     const logs = await window.getActionsLog();
     window._historiqueCache = logs;
-    renderHistoriqueRows(logs);
+    registerPaginatedList('historique', logs, renderHistoriquePage);
   } catch(err) {
     el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement de l\'historique.</p>';
   }
 }
 
-function renderHistoriqueRows(logs) {
+function renderHistoriquePage(pageItems, total, page) {
   const el = document.getElementById('historiqueList');
-  if (!logs.length) {
+  if (!total) {
     el.innerHTML = '<p style="color:#aaa;">Aucune action trouvée.</p>';
     return;
   }
-  el.innerHTML = logs.map(l => {
+  el.innerHTML = pageItems.map(l => {
     const meta = HISTORIQUE_ACTION_META[l.action] || { icon: '•', label: l.action, color: '#888' };
     const cibleLabel = HISTORIQUE_CIBLE_LABELS[l.cibleType] || l.cibleType || '';
     const roleTag = l.auteurRole === 'admin' ? '👑 Admin' : '👤 Collaborateur';
@@ -6042,7 +6092,7 @@ function renderHistoriqueRows(logs) {
       ${l.motif ? `<div style="font-size:12px;color:#666;margin-top:6px;font-style:italic;">💬 "${l.motif}"</div>` : ''}
       <div style="font-size:10px;color:#aaa;margin-top:8px;">${roleTag} · ${l.dateAffichage || ''}</div>
     </div>`;
-  }).join('');
+  }).join('') + paginationControlsHtml('historique', total);
 }
 
 function filterHistorique() {
@@ -6061,14 +6111,14 @@ function filterHistorique() {
     const matchDate = dateInRange(l.dateAffichage, from, to);
     return matchKw && matchDate;
   });
-  renderHistoriqueRows(filtered);
+  registerPaginatedList('historique', filtered, renderHistoriquePage);
 }
 
 function resetHistoriqueFilter() {
   document.getElementById('hist-search').value = '';
   document.getElementById('hist-date-from').value = '';
   document.getElementById('hist-date-to').value = '';
-  renderHistoriqueRows(window._historiqueCache || []);
+  registerPaginatedList('historique', window._historiqueCache || [], renderHistoriquePage);
 }
 
 // Close on Escape
