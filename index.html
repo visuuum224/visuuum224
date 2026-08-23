@@ -2042,10 +2042,10 @@ footer {
       <button class="btn-dark" id="defi-fb-btn" onclick="openDefiFacebook()">
         Je relève le défi →
       </button>
-      <button class="btn-outline-dark" onclick="openDefiInscriptionModal()">
+      <button class="btn-outline-dark" id="defi-insc-btn" onclick="openDefiInscriptionModal()">
         Inscrire ma vidéo
       </button>
-      <button class="btn-outline-dark" onclick="openDefiVoteModal()">
+      <button class="btn-outline-dark" id="defi-vote-btn" onclick="openDefiVoteModal()">
         Voter pour un participant
       </button>
     </div>
@@ -2743,8 +2743,12 @@ window.refreshEntreprises = function(firebaseData) {
   });
   eCurrentPage = 1;
   renderEntreprises();
-  // Update counter
-  document.getElementById('c1').textContent = entreprises.length + '+';
+  // Update counter — élément "c1" absent du HTML actuel (section stats retirée
+  // à un moment donné sans nettoyer ce code ni la CSS .hero-stats associée) ;
+  // on protège l'appel pour ne plus faire échouer tout le chargement Firebase
+  // avec un message trompeur ("Firebase non disponible") alors qu'il l'était bien.
+  const c1El = document.getElementById('c1');
+  if (c1El) c1El.textContent = entreprises.length + '+';
 };
 
 window.refreshProduits = function(firebaseData) {
@@ -3480,6 +3484,7 @@ async function initDefiPublic() {
     if (window.getDefiManche) defiMancheCache = await window.getDefiManche();
   } catch(e) { console.warn('Chargement manche défi échoué', e); }
   updateDefiFacebookButton();
+  updateDefiButtonsState();
 
   try {
     if (window.getDefiPrix) {
@@ -3501,6 +3506,34 @@ function updateDefiFacebookButton() {
   if (!btn) return;
   const url = (defiMancheCache && defiMancheCache.lienFacebook) || DEFI_FB_FALLBACK_URL;
   btn.setAttribute('data-fb-url', url);
+}
+
+// Reflète le statut de la manche (défini dans l'admin) sur les boutons publics :
+// pendant "inscriptions", le vote n'est pas encore ouvert ; une fois "cloturee",
+// plus aucune nouvelle inscription ni aucun nouveau vote n'est accepté.
+function updateDefiButtonsState() {
+  const statut = (defiMancheCache && defiMancheCache.statutVote) || 'inscriptions';
+  const inscBtn = document.getElementById('defi-insc-btn');
+  const voteBtn = document.getElementById('defi-vote-btn');
+  if (!inscBtn || !voteBtn) return;
+
+  const setBtnState = (btn, disabled, label) => {
+    btn.disabled = disabled;
+    btn.style.opacity = disabled ? '0.45' : '1';
+    btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+    btn.title = label || '';
+  };
+
+  if (statut === 'cloturee') {
+    setBtnState(inscBtn, true, 'Cette manche du #Défi-V224 est terminée.');
+    setBtnState(voteBtn, true, 'Cette manche du #Défi-V224 est terminée.');
+  } else if (statut === 'vote') {
+    setBtnState(inscBtn, false);
+    setBtnState(voteBtn, false);
+  } else { // 'inscriptions' — vote pas encore ouvert
+    setBtnState(inscBtn, false);
+    setBtnState(voteBtn, true, 'Le vote ouvrira bientôt — reviens un peu plus tard !');
+  }
 }
 
 function openDefiFacebook() {
@@ -3558,6 +3591,11 @@ function renderDefiClassement() {
 }
 
 function openDefiInscriptionModal() {
+  const statut = (defiMancheCache && defiMancheCache.statutVote) || 'inscriptions';
+  if (statut === 'cloturee') {
+    alert('Cette manche du #Défi-V224 est terminée. Merci de ta participation !');
+    return;
+  }
   document.getElementById('defiInscriptionModal').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -3611,6 +3649,15 @@ async function submitDefiInscription() {
 }
 
 function openDefiVoteModal(preselectParticipantId) {
+  const statut = (defiMancheCache && defiMancheCache.statutVote) || 'inscriptions';
+  if (statut === 'cloturee') {
+    alert('Cette manche du #Défi-V224 est terminée. Merci pour tes votes !');
+    return;
+  }
+  if (statut === 'inscriptions') {
+    alert('Le vote n\'est pas encore ouvert pour cette manche — reviens un peu plus tard !');
+    return;
+  }
   renderDefiClassement(); // s'assure que la liste déroulante est à jour
   const select = document.getElementById('dv-participant');
   if (select && preselectParticipantId) select.value = preselectParticipantId;
@@ -3877,7 +3924,7 @@ function openAdmin() {
   const overlay = document.getElementById('adminOverlay');
   overlay.style.display = 'flex';
   document.body.style.overflow = 'hidden';
-  document.getElementById('adminPass').focus();
+  document.getElementById('adminEmail').focus();
 }
 
 async function closeAdmin() {
@@ -3960,6 +4007,7 @@ async function checkAdmin() {
       setTimeout(() => animateCounter('admin-count-pays', PAYS_DIASPORA_CONNECTES, '+'), 600);
       loadAdminList();
       loadDemandesList();
+      loadDefiParticipantsAdmin(); // initialise aussi le badge "en attente" du menu Défi-V224
     } else {
       // Compte entreprise — vérifier s'il n'est pas suspendu
       const ent = window.getMyEntrepriseFirestore ? await window.getMyEntrepriseFirestore(user.uid) : null;
