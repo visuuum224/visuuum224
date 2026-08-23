@@ -548,6 +548,60 @@ section { padding: 96px 6vw; width: 100%; }
   display: inline-flex; align-items: center; gap: 8px;
 }
 .btn-dark:hover { background: #222; }
+.btn-outline-dark {
+  background: transparent; color: #111;
+  padding: 13px 30px; border-radius: 4px;
+  font-family: 'Syne'; font-size: 13px; font-weight: 700;
+  letter-spacing: .08em; cursor: pointer; border: 1.5px solid rgba(0,0,0,.25);
+  transition: all .2s;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-outline-dark:hover { border-color: #111; background: rgba(0,0,0,.05); }
+.defi-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 56px; }
+.defi-extra { margin-top: 8px; }
+.defi-subhead {
+  font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+  color: rgba(0,0,0,.45); margin-bottom: 16px;
+}
+.defi-prizes-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 16px; margin-bottom: 48px;
+}
+.prix-card {
+  background: rgba(0,0,0,.08); border-radius: 8px; padding: 20px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.prix-card img { width: 100%; height: 120px; object-fit: cover; border-radius: 6px; }
+.prix-rang {
+  font-family: 'Bebas Neue'; font-size: 20px; color: var(--orange);
+  letter-spacing: 1px;
+}
+.prix-titre { font-size: 14px; font-weight: 700; color: #111; }
+.prix-desc { font-size: 12px; color: rgba(0,0,0,.55); line-height: 1.6; }
+.prix-sponsor { font-size: 11px; color: rgba(0,0,0,.4); }
+.classement-list { margin-bottom: 16px; }
+.classement-row {
+  display: flex; align-items: center; gap: 14px;
+  background: rgba(0,0,0,.06); border-radius: 8px;
+  padding: 12px 16px; margin-bottom: 8px;
+}
+.classement-rang {
+  font-family: 'Bebas Neue'; font-size: 22px; color: rgba(0,0,0,.3);
+  width: 30px; flex-shrink: 0; text-align: center;
+}
+.classement-row:nth-child(1) .classement-rang { color: var(--orange); }
+.classement-nom { font-size: 13px; font-weight: 700; color: #111; flex: 1; min-width: 0; }
+.classement-ville { font-size: 11px; color: rgba(0,0,0,.45); font-weight: 400; }
+.classement-votes { font-size: 12px; font-weight: 700; color: var(--orange); flex-shrink: 0; }
+.classement-vote-btn {
+  background: #111; color: #fff; border: none; border-radius: 4px;
+  padding: 7px 14px; font-family: 'Syne'; font-size: 11px; font-weight: 700;
+  cursor: pointer; flex-shrink: 0; transition: background .2s;
+}
+.classement-vote-btn:hover { background: var(--orange); }
+@media (max-width: 760px) {
+  .defi-prizes-grid { grid-template-columns: 1fr; }
+}
 
 /* ── INSCRIPTION ── */
 #inscription { background: var(--bg); }
@@ -1083,6 +1137,83 @@ footer {
   </div>
 </div>
 
+<!-- ── #DÉFI-V224 : MODALE INSCRIPTION VIDÉO ── -->
+<div class="modal-overlay" id="defiInscriptionModal" onclick="if(event.target===this)closeDefiInscriptionModal()">
+  <div class="modal-box" style="max-width:520px;">
+    <button class="modal-close" onclick="closeDefiInscriptionModal()">✕</button>
+    <div style="padding:36px 32px 32px;">
+      <div style="font-family:'Bebas Neue';font-size:26px;letter-spacing:1px;color:#111;margin-bottom:6px;">Inscris ta vidéo</div>
+      <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px;">Ta vidéo doit déjà être publiée sur Facebook, Instagram ou WhatsApp avec le hashtag #Défi-V224. Colle le lien ici pour l'inscrire au vote.</p>
+
+      <div class="form-group">
+        <label class="form-label">Nom et prénom *</label>
+        <input type="text" class="form-input" id="di-nom" placeholder="Ton nom complet">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ville *</label>
+        <input type="text" class="form-input" id="di-ville" placeholder="Ex : Conakry, Kaloum">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Plateforme *</label>
+        <select class="form-select form-input" id="di-plateforme">
+          <option value="Facebook">Facebook</option>
+          <option value="Instagram">Instagram</option>
+          <option value="WhatsApp">WhatsApp</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Lien de la vidéo *</label>
+        <input type="url" class="form-input" id="di-lien" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">WhatsApp (pour te recontacter) *</label>
+        <input type="tel" class="form-input" id="di-whatsapp" placeholder="+224 6XX XXX XXX">
+      </div>
+
+      <button class="btn-primary" style="width:100%;justify-content:center;" id="di-submit-btn" onclick="submitDefiInscription()">
+        Envoyer mon inscription
+      </button>
+      <p id="di-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
+      <p style="font-size:11px;color:var(--text3);text-align:center;margin-top:12px;">Ta vidéo apparaîtra dans le classement après validation par l'équipe VISUUUM 224.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── #DÉFI-V224 : MODALE VOTE ── -->
+<div class="modal-overlay" id="defiVoteModal" onclick="if(event.target===this)closeDefiVoteModal()">
+  <div class="modal-box" style="max-width:480px;">
+    <button class="modal-close" onclick="closeDefiVoteModal()">✕</button>
+    <div style="padding:36px 32px 32px;">
+      <div style="font-family:'Bebas Neue';font-size:26px;letter-spacing:1px;color:#111;margin-bottom:6px;">Vote pour ton favori</div>
+      <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px;">Un seul vote par numéro de téléphone pour toute la manche.</p>
+
+      <div class="form-group">
+        <label class="form-label">Je vote pour *</label>
+        <select class="form-select form-input" id="dv-participant">
+          <option value="">Choisis un participant...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Prénom *</label>
+        <input type="text" class="form-input" id="dv-prenom" placeholder="Ton prénom">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nom *</label>
+        <input type="text" class="form-input" id="dv-nom" placeholder="Ton nom">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Numéro de téléphone *</label>
+        <input type="tel" class="form-input" id="dv-telephone" placeholder="+224 6XX XXX XXX">
+      </div>
+
+      <button class="btn-primary" style="width:100%;justify-content:center;" id="dv-submit-btn" onclick="submitDefiVoteHandler()">
+        Voter
+      </button>
+      <p id="dv-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
+    </div>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
   import { getFirestore, collection, getDocs, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where }
@@ -1368,6 +1499,90 @@ footer {
     return await addDoc(collection(db, "produits"), data);
   };
 
+  // ── #DÉFI-V224 (concours vidéo à vote public) ──────────────────────────────
+  const DEFI_MANCHE_ID = "principale"; // une seule manche active à la fois pour l'instant
+
+  window.getDefiManche = async function() {
+    try {
+      const snap = await getDoc(doc(db, "defi_manche", DEFI_MANCHE_ID));
+      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    } catch(err) {
+      console.warn("Chargement manche #Défi-V224 échoué:", err);
+      return null;
+    }
+  };
+
+  window.saveDefiManche = async function(data) {
+    return await setDoc(doc(db, "defi_manche", DEFI_MANCHE_ID), data, { merge: true });
+  };
+
+  // Inscription d'un participant (formulaire public) — en attente de modération
+  window.submitDefiParticipant = async function(data) {
+    return await addDoc(collection(db, "defi_participants"), {
+      ...data,
+      mancheId: DEFI_MANCHE_ID,
+      statut: "en_attente",
+      dateSoumission: serverTimestamp()
+    });
+  };
+
+  window.getDefiParticipants = async function() {
+    const snap = await getDocs(query(collection(db, "defi_participants"), where("mancheId", "==", DEFI_MANCHE_ID)));
+    const result = [];
+    snap.forEach(d => result.push({ id: d.id, ...d.data() }));
+    return result;
+  };
+
+  window.updateDefiParticipant = async function(id, data) {
+    return await updateDoc(doc(db, "defi_participants", id), data);
+  };
+
+  window.deleteDefiParticipant = async function(id) {
+    return await deleteDoc(doc(db, "defi_participants", id));
+  };
+
+  // Vote — un seul par numéro de téléphone et par manche.
+  // L'ID du document est déterministe ({manche}_{téléphone normalisé}) : Firestore
+  // traite une seconde écriture sur le même ID comme une "update", que la règle
+  // de sécurité (allow create seulement) rejette automatiquement. Aucun code de
+  // vérification supplémentaire n'est donc nécessaire pour bloquer les doublons.
+  window.submitDefiVote = async function(telephoneNormalise, data) {
+    const voteId = DEFI_MANCHE_ID + "_" + telephoneNormalise;
+    await setDoc(doc(db, "defi_votes", voteId), {
+      ...data,
+      mancheId: DEFI_MANCHE_ID,
+      dateVote: serverTimestamp()
+    });
+    return voteId;
+  };
+
+  window.getDefiVotes = async function() {
+    const snap = await getDocs(query(collection(db, "defi_votes"), where("mancheId", "==", DEFI_MANCHE_ID)));
+    const result = [];
+    snap.forEach(d => result.push({ id: d.id, ...d.data() }));
+    return result;
+  };
+
+  // Cadeaux / prix à gagner
+  window.addDefiPrixToFirestore = async function(data) {
+    return await addDoc(collection(db, "defi_prix"), { ...data, mancheId: DEFI_MANCHE_ID });
+  };
+
+  window.getDefiPrix = async function() {
+    const snap = await getDocs(query(collection(db, "defi_prix"), where("mancheId", "==", DEFI_MANCHE_ID)));
+    const result = [];
+    snap.forEach(d => result.push({ id: d.id, ...d.data() }));
+    return result.sort((a, b) => (a.rang || 99) - (b.rang || 99));
+  };
+
+  window.updateDefiPrixFirestore = async function(id, data) {
+    return await updateDoc(doc(db, "defi_prix", id), data);
+  };
+
+  window.deleteDefiPrixFirestore = async function(id) {
+    return await deleteDoc(doc(db, "defi_prix", id));
+  };
+
   // Vérifie si un email est déjà utilisé par une entreprise validée
   // ou une demande en attente (pour empêcher les doublons à l'inscription)
   window.checkEmailAlreadyUsed = async function(email) {
@@ -1496,6 +1711,7 @@ footer {
     loadEntreprisesFromFirebase();
     loadProduitsFromFirebase();
     loadPartenairesFromFirebase();
+    if (window.initDefiPublic) window.initDefiPublic();
   });
 </script>
 
@@ -1798,33 +2014,59 @@ footer {
   <div class="defi-content">
     <div class="defi-tag reveal">Campagne nationale</div>
     <h2 class="defi-title reveal">#DÉFI<span>-V224</span></h2>
-    <p class="defi-sub reveal">30 jours · 100% local · 100% guinéen. Rejoignez le premier challenge national de consommation locale en Guinée.</p>
+    <p class="defi-sub reveal">30 jours · 100% local · 100% guinéen. Publie ta vidéo, le public vote, tu gagnes des prix.</p>
     <div class="defi-rules reveal">
       <div class="defi-rule">
         <div class="defi-rule-header">
           <div class="rule-n">01</div>
-          <div class="rule-t">Consomme local pendant 30 jours</div>
+          <div class="rule-t">Publie ta vidéo #Défi-V224</div>
         </div>
-        <div class="rule-d">Privilégiez les produits et services guinéens pendant un mois complet.</div>
+        <div class="rule-d">Sur Facebook, Instagram ou WhatsApp — montre ta consommation locale.</div>
       </div>
       <div class="defi-rule">
         <div class="defi-rule-header">
           <div class="rule-n">02</div>
-          <div class="rule-t">Partagez avec #Défi-V224</div>
+          <div class="rule-t">Inscris ta vidéo sur l'appli</div>
         </div>
-        <div class="rule-d">Poste tes achats, inspire ta communauté !</div>
+        <div class="rule-d">Ton entrée apparaît dans le classement, prête à recevoir des votes.</div>
       </div>
       <div class="defi-rule">
         <div class="defi-rule-header">
           <div class="rule-n">03</div>
-          <div class="rule-t">Gagnez des prix</div>
+          <div class="rule-t">Le public vote, tu gagnes</div>
         </div>
-        <div class="rule-d">À toi de jouer !</div>
+        <div class="rule-d">Un vote par personne. Les mieux votés remportent les prix.</div>
       </div>
     </div>
-    <button class="btn-dark reveal" onclick="document.getElementById('inscription').scrollIntoView({behavior:'smooth'})">
-      Je relève le défi → 
-    </button>
+    <div class="defi-actions reveal">
+      <button class="btn-dark" id="defi-fb-btn" onclick="openDefiFacebook()">
+        Je relève le défi →
+      </button>
+      <button class="btn-outline-dark" onclick="openDefiInscriptionModal()">
+        Inscrire ma vidéo
+      </button>
+      <button class="btn-outline-dark" onclick="openDefiVoteModal()">
+        Voter pour un participant
+      </button>
+    </div>
+
+    <div class="defi-extra reveal">
+      <div class="defi-subhead">Cadeaux à gagner</div>
+      <div class="defi-prizes-grid" id="defiPrixGrid">
+        <div class="prix-card">
+          <div class="prix-rang">🥇 1er prix</div>
+          <div class="prix-titre">À définir</div>
+          <div class="prix-desc">Les cadeaux de cette manche seront annoncés prochainement.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="defi-extra reveal">
+      <div class="defi-subhead">Classement en direct</div>
+      <div class="classement-list" id="defiClassementList">
+        <p style="font-size:13px;color:rgba(0,0,0,.5);">Aucun participant validé pour le moment — sois le premier à t'inscrire !</p>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -2473,6 +2715,11 @@ function closeModal(event, force) {
 
 // Close on ESC
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(null, true); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  closeDefiInscriptionModal();
+  closeDefiVoteModal();
+});
 
 
 // ── PAGINATION ENTREPRISES ──
@@ -3215,6 +3462,219 @@ async function submitForm() {
   }
 }
 
+// ── #DÉFI-V224 : PARTIE PUBLIQUE ────────────────────────────────────────────────
+const DEFI_FB_FALLBACK_URL = 'https://www.facebook.com/visuuum224'; // à remplacer par l'URL du post de lancement une fois publié
+let defiParticipantsCache = [];
+let defiVotesCache = [];
+let defiMancheCache = null;
+
+// Normalise un numéro guinéen pour servir de clé anti-doublon : on ne garde
+// que les 9 derniers chiffres, quel que soit le format saisi (+224, 00224, espaces...)
+function normalizeDefiPhone(tel) {
+  const digits = (tel || '').replace(/\D/g, '');
+  return digits.slice(-9);
+}
+
+async function initDefiPublic() {
+  try {
+    if (window.getDefiManche) defiMancheCache = await window.getDefiManche();
+  } catch(e) { console.warn('Chargement manche défi échoué', e); }
+  updateDefiFacebookButton();
+
+  try {
+    if (window.getDefiPrix) {
+      const prix = await window.getDefiPrix();
+      if (prix.length) renderDefiPrix(prix);
+    }
+  } catch(e) { console.warn('Chargement cadeaux défi échoué', e); }
+
+  try {
+    if (window.getDefiParticipants) defiParticipantsCache = await window.getDefiParticipants();
+    if (window.getDefiVotes) defiVotesCache = await window.getDefiVotes();
+    renderDefiClassement();
+  } catch(e) { console.warn('Chargement classement défi échoué', e); }
+}
+window.initDefiPublic = initDefiPublic;
+
+function updateDefiFacebookButton() {
+  const btn = document.getElementById('defi-fb-btn');
+  if (!btn) return;
+  const url = (defiMancheCache && defiMancheCache.lienFacebook) || DEFI_FB_FALLBACK_URL;
+  btn.setAttribute('data-fb-url', url);
+}
+
+function openDefiFacebook() {
+  const btn = document.getElementById('defi-fb-btn');
+  const url = (btn && btn.getAttribute('data-fb-url')) || DEFI_FB_FALLBACK_URL;
+  window.open(url, '_blank', 'noopener');
+}
+
+function renderDefiPrix(prix) {
+  const el = document.getElementById('defiPrixGrid');
+  if (!el || !prix.length) return;
+  const medailles = { 1: '🥇', 2: '🥈', 3: '🥉' };
+  el.innerHTML = prix.map(p => `
+    <div class="prix-card">
+      ${p.image ? `<img src="${p.image}" alt="">` : ''}
+      <div class="prix-rang">${medailles[p.rang] || '🎁'} ${p.rang ? p.rang + (p.rang === 1 ? 'er' : 'e') + ' prix' : 'Prix'}</div>
+      <div class="prix-titre">${p.titre || ''}</div>
+      ${p.description ? `<div class="prix-desc">${p.description}</div>` : ''}
+      ${p.partenaire ? `<div class="prix-sponsor">Offert par ${p.partenaire}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function renderDefiClassement() {
+  const el = document.getElementById('defiClassementList');
+  const select = document.getElementById('dv-participant');
+  if (!el) return;
+
+  const valides = defiParticipantsCache.filter(p => p.statut === 'valide');
+  if (!valides.length) {
+    el.innerHTML = '<p style="font-size:13px;color:rgba(0,0,0,.5);">Aucun participant validé pour le moment — sois le premier à t\'inscrire !</p>';
+    if (select) select.innerHTML = '<option value="">Aucun participant pour le moment</option>';
+    return;
+  }
+
+  // Tally des votes par participant, calculé côté client à partir de defi_votes
+  const counts = {};
+  defiVotesCache.forEach(v => { counts[v.participantId] = (counts[v.participantId] || 0) + 1; });
+  valides.forEach(p => p._voteCount = counts[p.id] || 0);
+  valides.sort((a, b) => b._voteCount - a._voteCount);
+
+  el.innerHTML = valides.map((p, i) => `
+    <div class="classement-row">
+      <div class="classement-rang">${i + 1}</div>
+      <div class="classement-nom">${p.nom || ''} <span class="classement-ville">· ${p.ville || ''}</span></div>
+      <div class="classement-votes">${p._voteCount} vote${p._voteCount > 1 ? 's' : ''}</div>
+      <button class="classement-vote-btn" onclick="openDefiVoteModal('${p.id}')">Voter</button>
+    </div>
+  `).join('');
+
+  if (select) {
+    select.innerHTML = '<option value="">Choisis un participant...</option>' +
+      valides.map(p => `<option value="${p.id}">${p.nom} — ${p.ville}</option>`).join('');
+  }
+}
+
+function openDefiInscriptionModal() {
+  document.getElementById('defiInscriptionModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeDefiInscriptionModal() {
+  document.getElementById('defiInscriptionModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+async function submitDefiInscription() {
+  const nom = document.getElementById('di-nom').value.trim();
+  const ville = document.getElementById('di-ville').value.trim();
+  const plateforme = document.getElementById('di-plateforme').value;
+  const lienVideo = document.getElementById('di-lien').value.trim();
+  const whatsapp = document.getElementById('di-whatsapp').value.trim();
+  const btn = document.getElementById('di-submit-btn');
+  const msg = document.getElementById('di-msg');
+
+  if (!nom || !ville || !lienVideo || !whatsapp) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = 'Merci de remplir tous les champs obligatoires (*).';
+    return;
+  }
+  if (!/^https?:\/\//i.test(lienVideo)) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = 'Le lien de la vidéo doit commencer par http:// ou https://';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Envoi en cours...';
+  msg.style.display = 'none';
+
+  try {
+    await window.submitDefiParticipant({ nom, ville, plateforme, lienVideo, whatsapp });
+    msg.style.display = 'block';
+    msg.style.color = '#2E7D46';
+    msg.textContent = '✓ Inscription envoyée ! Elle apparaîtra dans le classement après validation.';
+    ['di-nom','di-ville','di-lien','di-whatsapp'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('di-plateforme').value = 'Facebook';
+    setTimeout(closeDefiInscriptionModal, 2200);
+  } catch(err) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = "❌ Erreur lors de l'envoi. Réessaie dans un instant.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Envoyer mon inscription';
+  }
+}
+
+function openDefiVoteModal(preselectParticipantId) {
+  renderDefiClassement(); // s'assure que la liste déroulante est à jour
+  const select = document.getElementById('dv-participant');
+  if (select && preselectParticipantId) select.value = preselectParticipantId;
+  document.getElementById('defiVoteModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeDefiVoteModal() {
+  document.getElementById('defiVoteModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+async function submitDefiVoteHandler() {
+  const participantId = document.getElementById('dv-participant').value;
+  const prenom = document.getElementById('dv-prenom').value.trim();
+  const nom = document.getElementById('dv-nom').value.trim();
+  const telephone = document.getElementById('dv-telephone').value.trim();
+  const btn = document.getElementById('dv-submit-btn');
+  const msg = document.getElementById('dv-msg');
+
+  if (!participantId || !prenom || !nom || !telephone) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = 'Merci de remplir tous les champs obligatoires (*).';
+    return;
+  }
+  const normalise = normalizeDefiPhone(telephone);
+  if (normalise.length < 8) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = 'Numéro de téléphone invalide.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Vote en cours...';
+  msg.style.display = 'none';
+
+  try {
+    await window.submitDefiVote(normalise, { participantId, prenom, nom, telephone });
+    msg.style.display = 'block';
+    msg.style.color = '#2E7D46';
+    const participant = defiParticipantsCache.find(p => p.id === participantId);
+    msg.textContent = `✓ Merci ! Ton vote pour ${participant ? participant.nom : 'ce participant'} est enregistré.`;
+    document.getElementById('dv-prenom').value = '';
+    document.getElementById('dv-nom').value = '';
+    document.getElementById('dv-telephone').value = '';
+    // Rafraîchit le classement en direct avec ce nouveau vote
+    defiVotesCache.push({ participantId, mancheId: 'principale' });
+    renderDefiClassement();
+    setTimeout(closeDefiVoteModal, 2500);
+  } catch(err) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    if (err && (err.code === 'permission-denied' || /PERMISSION_DENIED/i.test(err.message || ''))) {
+      msg.textContent = 'Ce numéro a déjà voté pour cette manche du #Défi-V224.';
+    } else {
+      msg.textContent = "❌ Erreur lors de l'envoi du vote. Réessaie dans un instant.";
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Voter';
+  }
+}
+
 // ── COUNTERS ──────────────────────────────────────────────────────────────────
 function animateCounter(id, target, suffix) {
   suffix = suffix || '';
@@ -3600,10 +4060,13 @@ function togglePassword() {
 }
 
 const ENTREPRISES_SUBTABS = ['add', 'list', 'produit', 'partenaires'];
+const DEFI_SUBTABS = ['defiManche', 'defiParticipants', 'defiVotes', 'defiPrix'];
 
 function switchTab(tab) {
-  const tabs = ['add', 'list', 'produit', 'demandes', 'partenaires', 'comptes', 'historique'];
+  const tabs = ['add', 'list', 'produit', 'demandes', 'partenaires', 'comptes', 'historique',
+    'defiManche', 'defiParticipants', 'defiVotes', 'defiPrix'];
   const isSubtab = ENTREPRISES_SUBTABS.includes(tab);
+  const isDefiSubtab = DEFI_SUBTABS.includes(tab);
 
   tabs.forEach(t => {
     const panel = document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1));
@@ -3611,8 +4074,8 @@ function switchTab(tab) {
     const btn = document.getElementById('tab-' + t);
     if (!btn) return;
 
-    if (ENTREPRISES_SUBTABS.includes(t)) {
-      // Style "liste verticale" pour les sous-éléments du menu Entreprises
+    if (ENTREPRISES_SUBTABS.includes(t) || DEFI_SUBTABS.includes(t)) {
+      // Style "liste verticale" pour les sous-éléments d'un menu déroulant
       btn.style.background = t === tab ? 'rgba(232,98,42,.06)' : '#fff';
       btn.style.color = t === tab ? '#E8622A' : '#555';
     } else {
@@ -3629,7 +4092,15 @@ function switchTab(tab) {
     parentBtn.style.color = isSubtab ? '#E8622A' : '#888';
   }
 
+  // Idem pour le bouton parent "🏆 Défi-V224"
+  const defiParentBtn = document.getElementById('tab-defi-menu');
+  if (defiParentBtn) {
+    defiParentBtn.style.borderBottom = isDefiSubtab ? '2px solid #E8622A' : '2px solid transparent';
+    defiParentBtn.style.color = isDefiSubtab ? '#E8622A' : '#888';
+  }
+
   if (isSubtab) closeEntreprisesMenu();
+  if (isDefiSubtab) closeDefiMenu();
 
   if (tab === 'list') loadAdminList();
   if (tab === 'produit') populateVendeurSelect();
@@ -3637,11 +4108,16 @@ function switchTab(tab) {
   if (tab === 'partenaires') loadPartenairesAdminList();
   if (tab === 'comptes') loadComptesTab();
   if (tab === 'historique') loadHistoriqueTab();
+  if (tab === 'defiManche') loadDefiMancheAdmin();
+  if (tab === 'defiParticipants') loadDefiParticipantsAdmin();
+  if (tab === 'defiVotes') loadDefiVotesAdmin();
+  if (tab === 'defiPrix') loadDefiPrixAdminList();
 }
 
 function toggleEntreprisesMenu() {
   const dropdown = document.getElementById('entreprises-dropdown');
   const isOpen = dropdown.style.display === 'block';
+  closeDefiMenu();
   dropdown.style.display = isOpen ? 'none' : 'block';
 }
 
@@ -3650,15 +4126,32 @@ function closeEntreprisesMenu() {
   if (dropdown) dropdown.style.display = 'none';
 }
 
+function toggleDefiMenu() {
+  const dropdown = document.getElementById('defi-dropdown');
+  const isOpen = dropdown.style.display === 'block';
+  closeEntreprisesMenu();
+  dropdown.style.display = isOpen ? 'none' : 'block';
+}
+
+function closeDefiMenu() {
+  const dropdown = document.getElementById('defi-dropdown');
+  if (dropdown) dropdown.style.display = 'none';
+}
+
 // Ferme le menu déroulant si on clique ailleurs
 document.addEventListener('click', (e) => {
   const dropdown = document.getElementById('entreprises-dropdown');
   const menuBtn = document.getElementById('tab-entreprises-menu');
-  if (!dropdown || dropdown.style.display !== 'block') return;
-  if (!dropdown.contains(e.target) && e.target !== menuBtn) {
+  if (dropdown && dropdown.style.display === 'block' && !dropdown.contains(e.target) && e.target !== menuBtn) {
     closeEntreprisesMenu();
   }
+  const defiDropdown = document.getElementById('defi-dropdown');
+  const defiMenuBtn = document.getElementById('tab-defi-menu');
+  if (defiDropdown && defiDropdown.style.display === 'block' && !defiDropdown.contains(e.target) && e.target !== defiMenuBtn) {
+    closeDefiMenu();
+  }
 });
+
 
 async function adminAddEntreprise() {
   const nom     = document.getElementById('a-nom').value.trim();
@@ -4782,8 +5275,8 @@ async function validerDemande(id) {
     await window.validerInscriptionFirestore(id, inscription);
     if (el) el.remove();
     decrementDemandesBadge();
-    loadAdminList();
-    setTimeout(() => animateCounter('admin-count-entreprises', 56, '+'), 100);
+    await loadAdminList(); // recharge la liste ET window._adminEntCache avant de recompter
+    animateCounter('admin-count-entreprises', (window._adminEntCache || entreprises).length, '+');
     logStaffAction('validation', 'demande', (inscription && inscription.nom) || '(sans nom)');
   } catch(err) {
     alert('Erreur lors de la validation. Réessayez.');
@@ -6211,6 +6704,347 @@ function resetHistoriqueFilter() {
   registerPaginatedList('historique', window._historiqueCache || [], renderHistoriquePage);
 }
 
+// ── #DÉFI-V224 : PARTIE ADMIN ────────────────────────────────────────────────
+
+// -- Sous-onglet MANCHE --
+async function loadDefiMancheAdmin() {
+  const msg = document.getElementById('dm-msg');
+  if (msg) msg.style.display = 'none';
+  try {
+    const manche = window.getDefiManche ? await window.getDefiManche() : null;
+    defiMancheCache = manche;
+    document.getElementById('dm-titre').value = (manche && manche.titre) || '#Défi-V224';
+    document.getElementById('dm-date-debut').value = (manche && manche.dateDebut) || '';
+    document.getElementById('dm-date-fin').value = (manche && manche.dateFin) || '';
+    document.getElementById('dm-statut').value = (manche && manche.statutVote) || 'inscriptions';
+    document.getElementById('dm-lien-fb').value = (manche && manche.lienFacebook) || '';
+  } catch(err) {
+    console.warn('Chargement manche admin échoué:', err);
+  }
+}
+
+async function saveDefiMancheHandler() {
+  const titre = document.getElementById('dm-titre').value.trim();
+  const dateDebut = document.getElementById('dm-date-debut').value;
+  const dateFin = document.getElementById('dm-date-fin').value;
+  const statutVote = document.getElementById('dm-statut').value;
+  const lienFacebook = document.getElementById('dm-lien-fb').value.trim();
+  const btn = document.getElementById('dm-save-btn');
+  const msg = document.getElementById('dm-msg');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Enregistrement...';
+  try {
+    await window.saveDefiManche({ titre, dateDebut, dateFin, statutVote, lienFacebook });
+    defiMancheCache = { ...(defiMancheCache || {}), titre, dateDebut, dateFin, statutVote, lienFacebook };
+    updateDefiFacebookButton();
+    msg.style.display = 'block';
+    msg.style.color = '#2E7D46';
+    msg.textContent = '✓ Manche mise à jour !';
+    logStaffAction('modification', 'défi-manche', titre || 'Manche #Défi-V224');
+  } catch(err) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = "❌ Erreur lors de l'enregistrement.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✦ Enregistrer';
+  }
+}
+
+// -- Sous-onglet PARTICIPANTS --
+async function loadDefiParticipantsAdmin() {
+  const el = document.getElementById('defiParticipantsAdminList');
+  const badge = document.getElementById('defi-participants-badge');
+  if (!el) return;
+  el.innerHTML = '<p style="color:#888;">Chargement...</p>';
+  try {
+    defiParticipantsCache = window.getDefiParticipants ? await window.getDefiParticipants() : [];
+    const enAttente = defiParticipantsCache.filter(p => p.statut === 'en_attente');
+    if (badge) {
+      badge.textContent = enAttente.length;
+      badge.style.display = enAttente.length > 0 ? 'inline-block' : 'none';
+    }
+    if (!defiParticipantsCache.length) {
+      el.innerHTML = '<p style="color:#aaa;">Aucune inscription pour le moment.</p>';
+      return;
+    }
+    // Trie : en attente d'abord, puis validés, puis refusés
+    const ordre = { en_attente: 0, valide: 1, refuse: 2 };
+    const tries = [...defiParticipantsCache].sort((a, b) => (ordre[a.statut] ?? 3) - (ordre[b.statut] ?? 3));
+    const badgeStyle = {
+      en_attente: 'background:rgba(232,152,42,.12);color:#B8760E;',
+      valide: 'background:rgba(46,125,70,.1);color:#2E7D46;',
+      refuse: 'background:rgba(163,45,45,.1);color:#A32D2D;'
+    };
+    const badgeLabel = { en_attente: '⏳ En attente', valide: '✓ Validé', refuse: '✕ Refusé' };
+
+    el.innerHTML = tries.map(p => `
+      <div id="defi-part-${p.id}" style="background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:10px;border:1px solid #eee;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+          <div style="min-width:0;">
+            <div style="font-weight:700;font-size:14px;color:#111;">${p.nom || '(sans nom)'}</div>
+            <div style="font-size:11px;color:#888;margin-top:2px;">${p.ville || ''} · ${p.plateforme || ''}</div>
+            <div style="font-size:11px;color:#888;margin-top:2px;">📱 ${p.whatsapp || '—'}</div>
+            ${p.lienVideo ? `<a href="${p.lienVideo}" target="_blank" style="font-size:11px;color:#E8622A;text-decoration:none;">▶ Voir la vidéo ↗</a>` : ''}
+          </div>
+          <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;${badgeStyle[p.statut] || ''}">${badgeLabel[p.statut] || p.statut}</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          ${p.statut !== 'valide' ? `<button onclick="validerDefiParticipantHandler('${p.id}')" style="flex:1;padding:8px;background:#2E7D46;color:#fff;border:none;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;">✓ Valider</button>` : ''}
+          ${p.statut !== 'refuse' ? `<button onclick="refuserDefiParticipantHandler('${p.id}')" style="flex:1;padding:8px;background:#fff;color:#A32D2D;border:1.5px solid #A32D2D;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;">✕ Refuser</button>` : ''}
+          <button onclick="deleteDefiParticipantHandler('${p.id}', '${(p.nom||'').replace(/'/g,"\\'")}')" style="padding:8px 12px;background:#fff;color:#888;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;">🗑️</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(err) {
+    el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
+  }
+}
+
+async function validerDefiParticipantHandler(id) {
+  const p = defiParticipantsCache.find(pp => pp.id === id);
+  try {
+    await window.updateDefiParticipant(id, { statut: 'valide' });
+    if (p) p.statut = 'valide';
+    logStaffAction('validation', 'défi-participant', (p && p.nom) || '(sans nom)');
+    loadDefiParticipantsAdmin();
+  } catch(err) {
+    alert('Erreur lors de la validation. Réessayez.');
+  }
+}
+
+async function refuserDefiParticipantHandler(id) {
+  if (!confirm('Refuser cette inscription au #Défi-V224 ?')) return;
+  const p = defiParticipantsCache.find(pp => pp.id === id);
+  try {
+    await window.updateDefiParticipant(id, { statut: 'refuse' });
+    if (p) p.statut = 'refuse';
+    logStaffAction('refus', 'défi-participant', (p && p.nom) || '(sans nom)');
+    loadDefiParticipantsAdmin();
+  } catch(err) {
+    alert('Erreur lors du refus. Réessayez.');
+  }
+}
+
+async function deleteDefiParticipantHandler(id, nom) {
+  if (!confirm('Supprimer définitivement "' + nom + '" du #Défi-V224 ?')) return;
+  const motif = demanderMotif('Motif de la suppression de "' + nom + '" (obligatoire) :');
+  if (motif === null) return;
+  try {
+    await window.deleteDefiParticipant(id);
+    defiParticipantsCache = defiParticipantsCache.filter(p => p.id !== id);
+    logStaffAction('suppression', 'défi-participant', nom, motif);
+    loadDefiParticipantsAdmin();
+  } catch(err) {
+    alert('Erreur lors de la suppression. Réessayez.');
+  }
+}
+
+// -- Sous-onglet VOTES --
+async function loadDefiVotesAdmin() {
+  const el = document.getElementById('defiVotesAdminList');
+  if (!el) return;
+  el.innerHTML = '<p style="color:#888;">Chargement...</p>';
+  try {
+    if (!defiParticipantsCache.length && window.getDefiParticipants) defiParticipantsCache = await window.getDefiParticipants();
+    defiVotesCache = window.getDefiVotes ? await window.getDefiVotes() : [];
+
+    const valides = defiParticipantsCache.filter(p => p.statut === 'valide');
+    const counts = {};
+    defiVotesCache.forEach(v => { counts[v.participantId] = (counts[v.participantId] || 0) + 1; });
+    valides.forEach(p => p._voteCount = counts[p.id] || 0);
+    valides.sort((a, b) => b._voteCount - a._voteCount);
+
+    document.getElementById('dv-stat-total').textContent = defiVotesCache.length;
+    document.getElementById('dv-stat-participants').textContent = valides.length;
+    document.getElementById('dv-stat-leader').textContent = valides.length ? valides[0].nom : '—';
+
+    if (!valides.length) {
+      el.innerHTML = '<p style="color:#aaa;">Aucun participant validé pour le moment.</p>';
+      return;
+    }
+
+    // Signal d'alerte simple (niveau 1) : repère les votes reçus dans la même minute pour un
+    // même participant — utile pour un coup d'œil, pas une preuve de fraude.
+    const minuteBuckets = {};
+    defiVotesCache.forEach(v => {
+      const ts = v.dateVote && v.dateVote.toDate ? v.dateVote.toDate() : null;
+      if (!ts) return;
+      const key = v.participantId + '_' + Math.floor(ts.getTime() / 60000);
+      minuteBuckets[key] = (minuteBuckets[key] || 0) + 1;
+    });
+    const pics = Object.values(minuteBuckets).filter(n => n >= 5).length;
+
+    el.innerHTML = (pics > 0 ? `
+      <div style="background:rgba(232,152,42,.1);border:1px solid rgba(232,152,42,.3);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:#B8760E;">
+        ⚠️ ${pics} pic${pics > 1 ? 's' : ''} de vote détecté${pics > 1 ? 's' : ''} (5 votes ou plus en moins d'une minute pour un même participant). Vérification manuelle recommandée avant la clôture.
+      </div>` : '') +
+      valides.map((p, i) => `
+      <div class="classement-row" style="background:#fff;border:1px solid #eee;margin-bottom:8px;border-radius:8px;padding:12px 16px;">
+        <div style="font-family:'Bebas Neue';font-size:20px;color:${i === 0 ? '#E8622A' : 'rgba(0,0,0,.3)'};width:28px;flex-shrink:0;text-align:center;">${i + 1}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:13px;color:#111;">${p.nom}</div>
+          <div style="font-size:11px;color:#888;">${p.ville || ''}</div>
+        </div>
+        <div style="font-weight:700;font-size:14px;color:#E8622A;">${p._voteCount} vote${p._voteCount > 1 ? 's' : ''}</div>
+      </div>
+    `).join('');
+  } catch(err) {
+    el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
+  }
+}
+
+// -- Sous-onglet CADEAUX --
+function previewDefiPrixImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const preview = document.getElementById('dp-image-preview');
+  const img = document.getElementById('dp-image-img');
+  img.src = URL.createObjectURL(file);
+  preview.style.display = 'flex';
+}
+
+function resetDefiPrixForm() {
+  document.getElementById('dp-editing-id').value = '';
+  document.getElementById('dp-rang').value = '1';
+  document.getElementById('dp-titre').value = '';
+  document.getElementById('dp-description').value = '';
+  document.getElementById('dp-partenaire').value = '';
+  document.getElementById('dp-image-file').value = '';
+  document.getElementById('dp-image-preview').style.display = 'none';
+  document.getElementById('dp-image-img').src = '';
+  const btn = document.getElementById('dp-save-btn');
+  btn.textContent = '✦ Ajouter le cadeau';
+  btn.disabled = false;
+  document.getElementById('dp-msg').style.display = 'none';
+}
+
+let defiPrixCache = [];
+
+async function saveDefiPrixHandler() {
+  const rang = parseInt(document.getElementById('dp-rang').value, 10);
+  const titre = document.getElementById('dp-titre').value.trim();
+  const description = document.getElementById('dp-description').value.trim();
+  const partenaire = document.getElementById('dp-partenaire').value.trim();
+  const editingId = document.getElementById('dp-editing-id').value;
+  const btn = document.getElementById('dp-save-btn');
+  const msg = document.getElementById('dp-msg');
+
+  if (!titre) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = 'Le titre du cadeau est obligatoire.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Enregistrement...';
+
+  const existing = editingId ? defiPrixCache.find(p => p.id === editingId) : null;
+  let image = existing ? (existing.image || '') : '';
+  const fileInput = document.getElementById('dp-image-file');
+  if (fileInput.files.length > 0) {
+    try {
+      image = await uploadToImgbb(fileInput.files[0]);
+    } catch(err) {
+      console.warn('Upload image cadeau échoué:', err);
+    }
+  }
+
+  const data = { rang, titre, description, partenaire, image };
+
+  try {
+    if (editingId) {
+      await window.updateDefiPrixFirestore(editingId, data);
+      msg.style.color = '#2E7D46';
+      msg.textContent = '✓ Cadeau mis à jour !';
+      const idx = defiPrixCache.findIndex(p => p.id === editingId);
+      if (idx !== -1) defiPrixCache[idx] = { ...defiPrixCache[idx], ...data };
+      logStaffAction('modification', 'défi-cadeau', titre);
+    } else {
+      const ref = await window.addDefiPrixToFirestore(data);
+      msg.style.color = '#2E7D46';
+      msg.textContent = '✓ Cadeau ajouté !';
+      defiPrixCache.push({ id: ref.id, ...data });
+      logStaffAction('création', 'défi-cadeau', titre);
+    }
+    msg.style.display = 'block';
+    defiPrixCache.sort((a, b) => (a.rang || 99) - (b.rang || 99));
+    renderDefiPrix(defiPrixCache);
+    resetDefiPrixForm();
+    loadDefiPrixAdminList();
+  } catch(err) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = "❌ Erreur lors de l'enregistrement.";
+    btn.disabled = false;
+    btn.textContent = editingId ? '✦ Enregistrer les modifications' : '✦ Ajouter le cadeau';
+  }
+}
+
+function editDefiPrixHandler(id) {
+  const p = defiPrixCache.find(pp => pp.id === id);
+  if (!p) return;
+  document.getElementById('dp-editing-id').value = id;
+  document.getElementById('dp-rang').value = p.rang || 1;
+  document.getElementById('dp-titre').value = p.titre || '';
+  document.getElementById('dp-description').value = p.description || '';
+  document.getElementById('dp-partenaire').value = p.partenaire || '';
+  document.getElementById('dp-image-file').value = '';
+  if (p.image) {
+    document.getElementById('dp-image-img').src = p.image;
+    document.getElementById('dp-image-preview').style.display = 'flex';
+  } else {
+    document.getElementById('dp-image-preview').style.display = 'none';
+  }
+  document.getElementById('dp-save-btn').textContent = '✦ Enregistrer les modifications';
+  const dashEl = document.getElementById('adminDash');
+  if (dashEl) dashEl.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function deleteDefiPrixHandler(id, titre) {
+  if (!confirm('Supprimer définitivement "' + titre + '" ?')) return;
+  const motif = demanderMotif('Motif de la suppression du cadeau "' + titre + '" (obligatoire) :');
+  if (motif === null) return;
+  try {
+    await window.deleteDefiPrixFirestore(id);
+    defiPrixCache = defiPrixCache.filter(p => p.id !== id);
+    renderDefiPrix(defiPrixCache);
+    logStaffAction('suppression', 'défi-cadeau', titre, motif);
+    loadDefiPrixAdminList();
+  } catch(err) {
+    alert('Erreur lors de la suppression.');
+  }
+}
+
+async function loadDefiPrixAdminList() {
+  const el = document.getElementById('defiPrixAdminList');
+  if (!el) return;
+  el.innerHTML = '<p style="color:#888;">Chargement...</p>';
+  try {
+    defiPrixCache = window.getDefiPrix ? await window.getDefiPrix() : [];
+    if (!defiPrixCache.length) {
+      el.innerHTML = '<p style="color:#aaa;">Aucun cadeau enregistré pour cette manche.</p>';
+      return;
+    }
+    const medailles = { 1: '🥇', 2: '🥈', 3: '🥉' };
+    el.innerHTML = defiPrixCache.map(p => `
+      <div style="background:#fff;border-radius:8px;padding:10px 14px;margin-bottom:8px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
+        ${p.image ? `<img src="${p.image}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;">` : `<span style="font-size:20px;">${medailles[p.rang] || '🎁'}</span>`}
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:13px;color:#111;">${p.titre}</div>
+          <div style="font-size:11px;color:#888;">${p.description || ''}${p.partenaire ? ' · Offert par ' + p.partenaire : ''}</div>
+        </div>
+        <button type="button" onclick="editDefiPrixHandler('${p.id}')" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:15px;padding:4px 6px;" onmouseover="this.style.color='#E8622A'" onmouseout="this.style.color='#ccc'">✏️</button>
+        <button type="button" onclick="deleteDefiPrixHandler('${p.id}', '${(p.titre||'').replace(/'/g,"\\'")}')" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;" onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>
+      </div>
+    `).join('');
+  } catch(err) {
+    el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
+  }
+}
+
 // Close on Escape
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAdmin(); });
 
@@ -6386,6 +7220,32 @@ function trackRecherche(terme) {
           <button class="admin-subtab" id="tab-partenaires" onclick="switchTab('partenaires')"
             style="width:100%; padding:12px 16px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; background:#fff; color:#555; text-align:left; border-top:1px solid #f0f0f0; border-radius:0 0 8px 8px;">
             🤝 Partenaires
+          </button>
+        </div>
+      </div>
+
+      <!-- Menu déroulant "🏆 Défi-V224" (Manche / Participants / Votes / Cadeaux) -->
+      <div style="flex:1; position:relative;">
+        <button class="admin-tab" id="tab-defi-menu" onclick="toggleDefiMenu()"
+          style="width:100%; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
+          🏆 Défi-V224 ▾
+        </button>
+        <div id="defi-dropdown" style="display:none; position:absolute; top:100%; left:0; min-width:200px; background:#fff; border:1px solid #ddd; border-radius:0 0 8px 8px; box-shadow:0 8px 20px rgba(0,0,0,.12); z-index:50;">
+          <button class="admin-subtab" id="tab-defiManche" onclick="switchTab('defiManche')"
+            style="width:100%; padding:12px 16px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; background:#fff; color:#555; text-align:left;">
+            ⚙️ Manche
+          </button>
+          <button class="admin-subtab" id="tab-defiParticipants" onclick="switchTab('defiParticipants')"
+            style="width:100%; padding:12px 16px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; background:#fff; color:#555; text-align:left; border-top:1px solid #f0f0f0; position:relative;">
+            🎬 Participants <span id="defi-participants-badge" style="display:none; background:#E24B4A; color:#fff; font-size:9px; font-weight:700; padding:1px 6px; border-radius:10px; margin-left:4px;">0</span>
+          </button>
+          <button class="admin-subtab" id="tab-defiVotes" onclick="switchTab('defiVotes')"
+            style="width:100%; padding:12px 16px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; background:#fff; color:#555; text-align:left; border-top:1px solid #f0f0f0;">
+            🗳️ Votes
+          </button>
+          <button class="admin-subtab" id="tab-defiPrix" onclick="switchTab('defiPrix')"
+            style="width:100%; padding:12px 16px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; background:#fff; color:#555; text-align:left; border-top:1px solid #f0f0f0; border-radius:0 0 8px 8px;">
+            🎁 Cadeaux
           </button>
         </div>
       </div>
@@ -7065,6 +7925,138 @@ function trackRecherche(terme) {
         <button onclick="resetHistoriqueFilter()" style="padding:9px 14px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;color:#888;cursor:pointer;">✕ Réinitialiser</button>
       </div>
       <div id="historiqueList" style="font-size:13px;color:#888;">Chargement...</div>
+    </div>
+
+    <!-- Tab DÉFI-V224 : MANCHE -->
+    <div id="panelDefiManche" style="padding:28px; display:none;">
+      <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:6px;">Paramètres de la manche</div>
+      <div style="font-size:12px; color:#888; margin-bottom:20px;">Une seule manche active à la fois. Le lien Facebook est celui utilisé par le bouton "Je relève le défi" sur le site public.</div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">TITRE DE LA MANCHE</label>
+        <input id="dm-titre" type="text" placeholder="Ex : #Défi-V224 — Édition 1"
+          style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">DATE DE DÉBUT</label>
+          <input id="dm-date-debut" type="date"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">DATE DE FIN</label>
+          <input id="dm-date-fin" type="date"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">STATUT DU VOTE</label>
+        <select id="dm-statut" style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+          <option value="inscriptions">Inscriptions ouvertes — vote pas encore ouvert</option>
+          <option value="vote">Vote ouvert au public</option>
+          <option value="cloturee">Manche clôturée</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom:20px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">LIEN FACEBOOK DE LANCEMENT</label>
+        <input id="dm-lien-fb" type="url" placeholder="https://www.facebook.com/..."
+          style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+      </div>
+
+      <button onclick="saveDefiMancheHandler()" id="dm-save-btn"
+        style="width:100%;padding:13px;background:#E8622A;color:#fff;border:none;border-radius:8px;font-family:'Syne';font-size:14px;font-weight:700;cursor:pointer;">
+        ✦ Enregistrer
+      </button>
+      <p id="dm-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
+    </div>
+
+    <!-- Tab DÉFI-V224 : PARTICIPANTS -->
+    <div id="panelDefiParticipants" style="padding:28px; display:none;">
+      <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:6px;">Modération des participants</div>
+      <div style="font-size:12px; color:#888; margin-bottom:20px;">Valide une vidéo pour qu'elle apparaisse dans le classement public et devienne votable.</div>
+      <div id="defiParticipantsAdminList" style="font-size:13px;color:#888;">Chargement...</div>
+    </div>
+
+    <!-- Tab DÉFI-V224 : VOTES -->
+    <div id="panelDefiVotes" style="padding:28px; display:none;">
+      <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:6px;">Suivi des votes</div>
+      <div style="font-size:12px; color:#888; margin-bottom:20px;">Classement en direct et détail des votes reçus. Chaque vote est lié à un numéro de téléphone unique (un seul vote par numéro et par manche).</div>
+      <div id="defiVotesStats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#e5e5e5;border:1px solid #e5e5e5;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+        <div style="background:#fff;padding:16px;text-align:center;">
+          <div style="font-family:'Bebas Neue';font-size:26px;color:#E8622A;" id="dv-stat-total">0</div>
+          <div style="font-size:9px;color:#888;letter-spacing:.1em;">VOTES TOTAUX</div>
+        </div>
+        <div style="background:#fff;padding:16px;text-align:center;">
+          <div style="font-family:'Bebas Neue';font-size:26px;color:#E8622A;" id="dv-stat-participants">0</div>
+          <div style="font-size:9px;color:#888;letter-spacing:.1em;">PARTICIPANTS VALIDÉS</div>
+        </div>
+        <div style="background:#fff;padding:16px;text-align:center;">
+          <div style="font-family:'Bebas Neue';font-size:26px;color:#E8622A;" id="dv-stat-leader">—</div>
+          <div style="font-size:9px;color:#888;letter-spacing:.1em;">EN TÊTE</div>
+        </div>
+      </div>
+      <div id="defiVotesAdminList" style="font-size:13px;color:#888;">Chargement...</div>
+    </div>
+
+    <!-- Tab DÉFI-V224 : CADEAUX -->
+    <div id="panelDefiPrix" style="padding:28px; display:none;">
+      <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:16px;">Nouveau cadeau</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">RANG *</label>
+          <select id="dp-rang" style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+            <option value="1">🥇 1er prix</option>
+            <option value="2">🥈 2e prix</option>
+            <option value="3">🥉 3e prix</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">TITRE *</label>
+          <input id="dp-titre" type="text" placeholder="Ex : Smartphone + forfait 1 an"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">DESCRIPTION</label>
+        <input id="dp-description" type="text" placeholder="Détail du cadeau"
+          style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">PARTENAIRE / SPONSOR</label>
+          <input id="dp-partenaire" type="text" placeholder="Ex : Orange Guinée"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">PHOTO (optionnel)</label>
+          <input type="file" id="dp-image-file" accept="image/*" style="display:none;" onchange="previewDefiPrixImage(this)">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <button type="button" onclick="document.getElementById('dp-image-file').click()"
+              style="padding:9px 18px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:600;color:#555;cursor:pointer;">📤 Choisir</button>
+            <div id="dp-image-preview" style="display:none;align-items:center;">
+              <img id="dp-image-img" src="" style="width:34px;height:34px;border-radius:6px;object-fit:cover;border:1px solid #ddd;">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <input type="hidden" id="dp-editing-id" value="">
+      <button onclick="saveDefiPrixHandler()" id="dp-save-btn"
+        style="width:100%;padding:13px;background:#E8622A;color:#fff;border:none;border-radius:8px;font-family:'Syne';font-size:14px;font-weight:700;cursor:pointer;">
+        ✦ Ajouter le cadeau
+      </button>
+      <p id="dp-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
+
+      <div style="margin-top:28px;padding-top:20px;border-top:1px solid #eee;">
+        <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:14px;">Cadeaux de la manche</div>
+        <div id="defiPrixAdminList" style="font-size:13px;color:#888;">Chargement...</div>
+      </div>
     </div>
 
   </div>
