@@ -4749,6 +4749,15 @@ async function loadDemandesList() {
   }
 }
 
+function decrementDemandesBadge() {
+  const badgeEl = document.getElementById('demandes-badge');
+  if (!badgeEl) return;
+  const current = parseInt(badgeEl.textContent, 10) || 0;
+  const next = Math.max(0, current - 1);
+  badgeEl.textContent = next;
+  badgeEl.style.display = next > 0 ? 'inline-block' : 'none';
+}
+
 async function validerDemande(id) {
   const el = document.getElementById('demande-' + id);
   if (el) el.style.opacity = '0.5';
@@ -4756,6 +4765,7 @@ async function validerDemande(id) {
     const inscription = window._demandesCache[id];
     await window.validerInscriptionFirestore(id, inscription);
     if (el) el.remove();
+    decrementDemandesBadge();
     loadAdminList();
     setTimeout(() => animateCounter('admin-count-entreprises', 56, '+'), 100);
   } catch(err) {
@@ -4771,6 +4781,7 @@ async function refuserDemande(id) {
   try {
     await window.refuserInscriptionFirestore(id);
     if (el) el.remove();
+    decrementDemandesBadge();
   } catch(err) {
     alert('Erreur. Réessayez.');
     if (el) el.style.opacity = '1';
@@ -5692,6 +5703,22 @@ function applyRolePermissions() {
   const readonlyNotice = document.getElementById('cpt-readonly-notice');
   if (createSection) createSection.style.display = isFullAdmin ? 'block' : 'none';
   if (readonlyNotice) readonlyNotice.style.display = isFullAdmin ? 'none' : 'block';
+
+  // Mise à jour de l'en-tête : "Panneau Admin/Collaborateur(trice)" + nom de la personne connectée
+  const titleEl = document.getElementById('adminPanelTitle');
+  const userEl = document.getElementById('adminPanelUser');
+  const info = window._currentStaffInfo;
+  if (titleEl) {
+    titleEl.textContent = isFullAdmin ? 'Panneau Administrateur' : 'Panneau Collaborateur (trice)';
+  }
+  if (userEl) {
+    if (info && info.nom) {
+      userEl.textContent = '👋 ' + info.nom;
+      userEl.style.display = 'block';
+    } else {
+      userEl.style.display = 'none';
+    }
+  }
 }
 
 function switchCptType(type) {
@@ -5750,7 +5777,7 @@ function renderStaffPage(pageItems, total, page) {
   const isFullAdmin = window._staffRole === 'admin';
   el.innerHTML = pageItems.map(s => {
     const suspended = s.statut === 'suspendu';
-    const roleLabel = s.role === 'admin' ? '👑 Compte Admin' : '👤 Compte Collaborateur';
+    const roleLabel = s.role === 'admin' ? '👑 Compte Admin' : '👤 Compte Collaborateur (trice)';
     return `
     <div id="staff-${s.id}" style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:8px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
       <div style="flex:1;min-width:0;">
@@ -6123,7 +6150,7 @@ function renderHistoriquePage(pageItems, total, page) {
   el.innerHTML = pageItems.map(l => {
     const meta = HISTORIQUE_ACTION_META[l.action] || { icon: '•', label: l.action, color: '#888' };
     const cibleLabel = HISTORIQUE_CIBLE_LABELS[l.cibleType] || l.cibleType || '';
-    const roleTag = l.auteurRole === 'admin' ? '👑 Admin' : '👤 Collaborateur';
+    const roleTag = l.auteurRole === 'admin' ? '👑 Admin' : '👤 Collaborateur (trice)';
     return `
     <div style="background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:10px;border:1px solid #eee;border-left:3px solid ${meta.color};">
       <div style="font-size:13px;color:#111;">
@@ -6280,7 +6307,8 @@ function trackRecherche(terme) {
     <div style="background:#111; padding:20px 28px; border-radius:16px 16px 0 0; display:flex; align-items:center; justify-content:space-between;">
       <div>
         <div style="font-family:'Bebas Neue'; font-size:26px; color:#E8622A; letter-spacing:2px;">VISUUUM 224</div>
-        <div style="font-size:11px; color:rgba(255,255,255,.4); letter-spacing:.12em;">Panneau Administrateur</div>
+        <div id="adminPanelTitle" style="font-size:11px; color:rgba(255,255,255,.4); letter-spacing:.12em;">Panneau Administrateur</div>
+        <div id="adminPanelUser" style="font-size:12px; color:rgba(255,255,255,.7); margin-top:2px; display:none;"></div>
       </div>
       <button onclick="closeAdmin()" style="background:rgba(255,255,255,.1); border:none; color:#fff; width:34px; height:34px; border-radius:50%; font-size:16px; cursor:pointer;">✕</button>
     </div>
@@ -6879,7 +6907,7 @@ function trackRecherche(terme) {
         <div style="display:flex; gap:0; border:1.5px solid #ddd; border-radius:8px; overflow:hidden; margin-bottom:18px; width:fit-content;">
           <button type="button" onclick="switchCptType('collaborateur')" id="cpt-type-collab"
             style="padding:9px 18px; border:none; background:#111; color:#fff; font-family:'Syne'; font-size:12px; font-weight:700; cursor:pointer;">
-            👤 Collaborateur
+            👤 Collaborateur (trice)
           </button>
           <button type="button" onclick="switchCptType('entreprise')" id="cpt-type-ent"
             style="padding:9px 18px; border:none; background:#fff; color:#888; font-family:'Syne'; font-size:12px; font-weight:700; cursor:pointer;">
@@ -6904,7 +6932,7 @@ function trackRecherche(terme) {
           <div style="margin-bottom:16px;">
             <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">RÔLE</label>
             <select id="cpt-role" style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;background:#fff;">
-              <option value="collaborateur">Collaborateur (gère le contenu, ne peut pas créer d'autres comptes)</option>
+              <option value="collaborateur">Collaborateur (trice) — gère le contenu, ne peut pas créer d'autres comptes</option>
               <option value="admin">Admin complet (tous les droits)</option>
             </select>
           </div>
