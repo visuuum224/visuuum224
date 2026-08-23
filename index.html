@@ -2104,6 +2104,18 @@ footer {
 </div>
 
 <script>
+// ── TAXONOMIE VISUUUM 224 (source unique — réutilisée partout : import Excel,
+// formulaires, filtres, statistiques du dashboard). Modifier ici seulement. ──
+const VISUUUM_SECTEURS = [
+  "🌾 Agriculture & Agroalimentaire", "🛍️ Commerce & Vente", "🧵 Artisanat & Mode",
+  "🏗️ BTP & Immobilier", "🍽️ Restauration & Food", "💊 Santé & Beauté",
+  "💻 Tech & Numérique", "🏦 Finance & Banque", "⛏️ Mines & Ressources",
+  "⚡ Énergie", "🚚 Transport & Logistique", "🎓 Éducation & Formation"
+];
+const VISUUUM_SECTEURS_TAGS = ["Agriculture","Commerce","Artisanat","BTP","Restauration","Santé","Tech","Finance","Mines","Énergie","Transport","Éducation"];
+const VISUUUM_REGIONS_NAT = ["Guinée Maritime","Fouta Djallon","Haute Guinée","Guinée Forestière"];
+const VISUUUM_REGIONS_ADMIN = ["Conakry","Kindia","Boké","Labé","Mamou","Kankan","Faranah","Siguiri","N'Zérékoré","Beyla"];
+
 // ── DATA ──────────────────────────────────────────────────────────────────────
 const partenaires = [
   { emoji:"🐔", nom:"Ferme KADY", type:"Élevage & Agriculture" },
@@ -3472,12 +3484,15 @@ async function checkAdmin() {
       document.getElementById('adminLogin').style.display = 'none';
       document.getElementById('adminDash').style.display = 'block';
       applyRolePermissions();
-      // Animate stats
-      setTimeout(() => animateCounter('admin-count-entreprises', 55, '+'), 200);
-      setTimeout(() => animateCounter('admin-count-secteurs', 9, ''), 300);
-      setTimeout(() => animateCounter('admin-count-regions-nat', 4, ''), 400);
-      setTimeout(() => animateCounter('admin-count-regions-admin', 8, ''), 500);
-      setTimeout(() => animateCounter('admin-count-pays', 12, '+'), 600);
+      // Animate stats — calculées à partir des données réelles / de la taxonomie
+      // (VISUUUM_SECTEURS / VISUUUM_REGIONS_*), plus le nombre de pays de la diaspora
+      // qui est un chiffre marketing non déductible des données Firestore.
+      const PAYS_DIASPORA_CONNECTES = 12; // chiffre marketing, à mettre à jour manuellement si besoin
+      setTimeout(() => animateCounter('admin-count-entreprises', entreprises.length, '+'), 200);
+      setTimeout(() => animateCounter('admin-count-secteurs', VISUUUM_SECTEURS.length, ''), 300);
+      setTimeout(() => animateCounter('admin-count-regions-nat', VISUUUM_REGIONS_NAT.length, ''), 400);
+      setTimeout(() => animateCounter('admin-count-regions-admin', VISUUUM_REGIONS_ADMIN.length, ''), 500);
+      setTimeout(() => animateCounter('admin-count-pays', PAYS_DIASPORA_CONNECTES, '+'), 600);
       loadAdminList();
       loadDemandesList();
     } else {
@@ -3743,15 +3758,11 @@ async function adminAddEntreprise() {
 let importData = [];
 
 async function downloadTemplate() {
-  const SECTEURS = [
-    "🌾 Agriculture & Agroalimentaire", "🛍️ Commerce & Vente", "🧵 Artisanat & Mode",
-    "🏗️ BTP & Immobilier", "🍽️ Restauration & Food", "💊 Santé & Beauté",
-    "💻 Tech & Numérique", "🏦 Finance & Banque", "⛏️ Mines & Ressources",
-    "⚡ Énergie", "🚚 Transport & Logistique", "🎓 Éducation & Formation"
-  ];
-  const TAGS = ["Agriculture","Commerce","Artisanat","BTP","Restauration","Santé","Tech","Finance","Mines","Énergie","Transport","Éducation"];
-  const REGIONS_NAT = ["Guinée Maritime","Fouta Djallon","Haute Guinée","Guinée Forestière"];
-  const REGIONS_ADMIN = ["Conakry","Kindia","Boké","Labé","Mamou","Kankan","Faranah","Siguiri","N'Zérékoré","Beyla"];
+  // Source unique : voir VISUUUM_SECTEURS / VISUUUM_REGIONS_* en tête de fichier
+  const SECTEURS = VISUUUM_SECTEURS;
+  const TAGS = VISUUUM_SECTEURS_TAGS;
+  const REGIONS_NAT = VISUUUM_REGIONS_NAT;
+  const REGIONS_ADMIN = VISUUUM_REGIONS_ADMIN;
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "VISUUUM 224";
@@ -4975,7 +4986,7 @@ async function loadEntEntrepriseTab(uid) {
     }
     window._myEntreprise = ent;
 
-    const secteurs = ["🌾 Agriculture & Agroalimentaire","🛍️ Commerce & Vente","🧵 Artisanat & Mode","🏗️ BTP & Immobilier","🍽️ Restauration & Food","💊 Santé & Beauté","💻 Tech & Numérique","🏦 Finance & Banque","⛏️ Mines & Ressources","⚡ Énergie","🚚 Transport & Logistique","🎓 Éducation & Formation"];
+    const secteurs = VISUUUM_SECTEURS; // source unique — voir tête de fichier
     const regionsNat = [
       {v:"Guinée Maritime", l:"🌊 Guinée Maritime"},
       {v:"Fouta Djallon", l:"⛰️ Fouta Djallon"},
