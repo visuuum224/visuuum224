@@ -4768,6 +4768,7 @@ async function validerDemande(id) {
     decrementDemandesBadge();
     loadAdminList();
     setTimeout(() => animateCounter('admin-count-entreprises', 56, '+'), 100);
+    logStaffAction('validation', 'demande', (inscription && inscription.nom) || '(sans nom)');
   } catch(err) {
     alert('Erreur lors de la validation. Réessayez.');
     if (el) el.style.opacity = '1';
@@ -4776,12 +4777,14 @@ async function validerDemande(id) {
 
 async function refuserDemande(id) {
   if (!confirm('Refuser cette demande d\'inscription ?')) return;
+  const nom = (window._demandesCache && window._demandesCache[id] && window._demandesCache[id].nom) || '(sans nom)';
   const el = document.getElementById('demande-' + id);
   if (el) el.style.opacity = '0.5';
   try {
     await window.refuserInscriptionFirestore(id);
     if (el) el.remove();
     decrementDemandesBadge();
+    logStaffAction('refus', 'demande', nom);
   } catch(err) {
     alert('Erreur. Réessayez.');
     if (el) el.style.opacity = '1';
@@ -6115,6 +6118,8 @@ const HISTORIQUE_ACTION_META = {
   suspension:   { icon: '⏸',  label: 'a suspendu', color: '#A32D2D' },
   reactivation: { icon: '✓',  label: 'a réactivé',  color: '#2E7D46' },
   modification: { icon: '✏️', label: 'a modifié',   color: '#555' },
+  validation:   { icon: '✅', label: 'a validé',     color: '#2E7D46' },
+  refus:        { icon: '❌', label: 'a refusé',     color: '#A32D2D' },
 };
 const HISTORIQUE_CIBLE_LABELS = {
   entreprise: 'l\'entreprise', partenaire: 'le partenaire',
