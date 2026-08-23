@@ -307,7 +307,7 @@ section { padding: 96px 6vw; width: 100%; }
 }
 .mission-card:hover { background: var(--bg); }
 .mission-header {
-  display: flex; align-items: center; gap: 14px;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   margin-bottom: 24px;
 }
 .mission-num {
@@ -325,6 +325,10 @@ section { padding: 96px 6vw; width: 100%; }
   font-family: 'Bebas Neue'; font-size: 28px;
   letter-spacing: 1px; margin-bottom: 0; color: var(--black);
   line-height: 1;
+}
+.mission-subtag {
+  font-size: 11px; font-weight: 700; letter-spacing: .03em;
+  color: #999; margin-left: 2px; white-space: nowrap;
 }
 .mission-card p { font-size: 14px; color: #666; line-height: 1.8; }
 
@@ -1567,6 +1571,7 @@ footer {
         <div class="mission-num">02</div>
         <div class="mission-icon">📋</div>
         <h3>ANNUAIRE</h3>
+        <span class="mission-subtag">(<span class="nimba-rep">Nimb<svg class="nimba-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 46" aria-label="a"><path d="M14 2C7 2 3 8 3 17v2h4v-2c0-6 3-9 7-9s7 3 7 9v2h4v-2C25 8 21 2 14 2z" fill="currentColor"/><ellipse cx="14" cy="24" rx="5" ry="6.5" fill="currentColor"/><rect x="11" y="30" width="6" height="3.5" rx="1" fill="currentColor"/><rect x="2" y="33" width="24" height="3" rx="1.5" fill="currentColor"/><circle cx="8" cy="40" r="4.2" fill="currentColor"/><circle cx="20" cy="40" r="4.2" fill="currentColor"/><rect x="9" y="42" width="10" height="3.5" rx="1" fill="currentColor"/></svg>'Rep</span>)</span>
       </div>
       <p>Trouvez la bonne entreprise guinéenne en quelques secondes. Filtrez par secteur, région ou produit et contactez directement le vendeur ou prestataire.</p>
     </div>
