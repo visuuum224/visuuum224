@@ -3425,16 +3425,21 @@ function getProduitsFiltres() {
   return allItems.filter(p => {
     // Déduire les régions du produit
     const regs = getProduitRegions(p);
+    const pOrigine = (p.origine || 'local').toLowerCase();
 
-    // Recherche texte
+    // Recherche texte — matche aussi le badge d'origine (Local/Importé) en
+    // plus du nom/vendeur/description/région, pour que taper "local" dans la
+    // barre de recherche trouve tous les produits badgés "Local", pas
+    // seulement ceux qui ont littéralement ce mot écrit dans leur titre.
     const matchSearch = !search ||
       (p.nom||'').toLowerCase().includes(search) ||
       (p.vendeur||'').toLowerCase().includes(search) ||
       (p.desc||'').toLowerCase().includes(search) ||
-      (p.region||'').toLowerCase().includes(search);
+      (p.region||'').toLowerCase().includes(search) ||
+      (search.includes('local') && pOrigine !== 'importé') ||
+      (search.includes('import') && pOrigine === 'importé');
 
     // Filtre origine
-    const pOrigine = (p.origine || 'local').toLowerCase();
     const matchOrigine = !origine ||
       (origine === 'local'   && pOrigine !== 'importé') ||
       (origine === 'importé' && pOrigine === 'importé');
@@ -4539,7 +4544,7 @@ function switchTab(tab) {
   if (isDefiSubtab) closeDefiMenu();
 
   if (tab === 'list') loadAdminList();
-  if (tab === 'produit') populateVendeurSelect();
+  if (tab === 'produit') { populateVendeurSelect(); loadAdminProduitsList(); }
   if (tab === 'demandes') loadDemandesList();
   if (tab === 'partenaires') loadPartenairesAdminList();
   if (tab === 'comptes') loadComptesTab();
@@ -4589,7 +4594,62 @@ document.addEventListener('click', (e) => {
 });
 
 
+function editEntrepriseHandler(id) {
+  const e = (window._adminEntCache || []).find(ee => ee.id === id);
+  if (!e) return;
+
+  switchTab('add');
+  document.getElementById('a-editing-id').value = id;
+  document.getElementById('a-nom').value = e.nom || '';
+  document.getElementById('a-responsable').value = e.responsable || '';
+  document.getElementById('a-secteur').value = e.secteur || '';
+  document.getElementById('a-tag').value = e.tag || '';
+  document.getElementById('a-ville').value = e.ville || '';
+  document.getElementById('a-wa').value = e.wa || '';
+  document.getElementById('a-email').value = e.email || '';
+  document.getElementById('a-emoji').value = e.emoji || '';
+  document.getElementById('a-desc').value = e.desc || '';
+  if (document.getElementById('a-region-nat')) document.getElementById('a-region-nat').value = e.regionNat || '';
+  if (document.getElementById('a-region-admin')) document.getElementById('a-region-admin').value = e.regionAdmin || '';
+
+  document.getElementById('a-logo').value = e.logo || '';
+  if (e.logo) {
+    document.getElementById('a-logo-img').src = e.logo;
+    document.getElementById('a-logo-name').textContent = 'Logo actuel';
+    document.getElementById('a-logo-preview').style.display = 'flex';
+  } else {
+    document.getElementById('a-logo-preview').style.display = 'none';
+  }
+  document.getElementById('a-logo-file').value = '';
+
+  resetAdresses();
+  (e.adresses || []).forEach(addr => addAdresseField(addr));
+
+  document.getElementById('panelAdd-heading').textContent = 'Modifier « ' + (e.nom || '') + ' »';
+  document.getElementById('a-cancel-edit').style.display = 'inline-block';
+  document.getElementById('a-submit-btn').textContent = '✦ Enregistrer les modifications';
+
+  const dashEl = document.getElementById('adminDash');
+  if (dashEl) dashEl.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelEditEntreprise() {
+  document.getElementById('a-editing-id').value = '';
+  ['a-nom','a-responsable','a-ville','a-wa','a-email','a-emoji','a-desc','a-logo'].forEach(id => document.getElementById(id).value = '');
+  if (document.getElementById('a-region-nat')) document.getElementById('a-region-nat').value = '';
+  if (document.getElementById('a-region-admin')) document.getElementById('a-region-admin').value = '';
+  document.getElementById('a-secteur').value = '';
+  document.getElementById('a-tag').value = '';
+  document.getElementById('a-logo-preview').style.display = 'none';
+  document.getElementById('a-logo-file').value = '';
+  resetAdresses();
+  document.getElementById('panelAdd-heading').textContent = 'Nouvelle entreprise';
+  document.getElementById('a-cancel-edit').style.display = 'none';
+  document.getElementById('a-submit-btn').textContent = '✦ Enregistrer';
+}
+
 async function adminAddEntreprise() {
+  const editingId = document.getElementById('a-editing-id').value;
   const nom     = document.getElementById('a-nom').value.trim();
   const resp    = document.getElementById('a-responsable').value.trim();
   const secteur = document.getElementById('a-secteur').value;
@@ -4606,16 +4666,16 @@ async function adminAddEntreprise() {
     return;
   }
 
-  const btn = document.querySelector('#panelAdd button');
+  const btn = document.getElementById('a-submit-btn');
   const statusEl = document.getElementById('a-logo-upload-status');
 
-  if (email && window.checkEmailAlreadyUsed) {
+  if (email && window.checkEmailAlreadyUsed && !editingId) {
     btn.textContent = '⏳ Vérification...';
     btn.disabled = true;
     const alreadyUsed = await window.checkEmailAlreadyUsed(email);
     if (alreadyUsed) {
       alert('⚠️ Cet email est déjà utilisé par une autre entreprise inscrite.');
-      btn.textContent = '✦ Enregistrer';
+      btn.textContent = editingId ? '✦ Enregistrer les modifications' : '✦ Enregistrer';
       btn.disabled = false;
       return;
     }
@@ -4644,38 +4704,66 @@ async function adminAddEntreprise() {
   const regionNat   = document.getElementById('a-region-nat')?.value || '';
   const regionAdmin = document.getElementById('a-region-admin')?.value || '';
 
-  // Si un email est renseigné, crée le compte entreprise + envoie l'invitation à définir un mot de passe
-  let ownerUid = '';
-  if (email && window.createEntrepriseAccount) {
+  // En édition, on conserve le compte déjà lié (ownerUid/dateCompte) tel quel —
+  // modifier une fiche ne doit jamais créer ou changer silencieusement un compte.
+  // Ça reste géré uniquement depuis l'onglet "Comptes".
+  const existing = editingId ? (window._adminEntCache || []).find(e => e.id === editingId) : null;
+  let ownerUid = existing ? (existing.ownerUid || '') : '';
+  let dateCompte = existing ? (existing.dateCompte || '') : '';
+
+  // Si un email est renseigné À LA CRÉATION, crée le compte entreprise + envoie l'invitation
+  if (!editingId && email && window.createEntrepriseAccount) {
     btn.textContent = '⏳ Création du compte entreprise...';
     ownerUid = await window.createEntrepriseAccount(email) || '';
+    dateCompte = ownerUid ? new Date().toLocaleDateString('fr-FR') : '';
   }
 
-  const data = { nom, responsable: resp, secteur, tag, ville, regionNat, regionAdmin, wa, email, emoji, desc, logo, adresses, ownerUid, dateAjout: new Date().toLocaleDateString('fr-FR'), dateCompte: ownerUid ? new Date().toLocaleDateString('fr-FR') : '' };
+  const data = {
+    nom, responsable: resp, secteur, tag, ville, regionNat, regionAdmin, wa, email, emoji, desc, logo, adresses, ownerUid,
+    dateAjout: existing ? (existing.dateAjout || '') : new Date().toLocaleDateString('fr-FR'),
+    dateCompte
+  };
 
   try {
-    if (window.addEntrepriseToFirestore) {
+    if (editingId) {
+      await window.updateEntrepriseFirestore(editingId, data);
+      // Met à jour les caches locaux (liste admin + annuaire public) sans recharger
+      const idxCache = (window._adminEntCache || []).findIndex(e => e.id === editingId);
+      if (idxCache !== -1) window._adminEntCache[idxCache] = { id: editingId, ...data };
+      const idxPub = entreprises.findIndex(e => e.id === editingId || e.nom === (existing && existing.nom));
+      if (idxPub !== -1) entreprises[idxPub] = { ...entreprises[idxPub], id: editingId, ...data };
+      renderEntreprises();
+
+      const msg = document.getElementById('adminMsg');
+      msg.style.display = 'block';
+      msg.style.color = '#27500A';
+      msg.textContent = '✅ ' + nom + ' mise à jour avec succès !';
+      setTimeout(() => { msg.style.display = 'none'; }, 4000);
+
+      cancelEditEntreprise(); // vide le formulaire et repasse en mode "Nouvelle entreprise"
+      await loadAdminList();  // rafraîchit la liste avec les nouvelles infos
+    } else if (window.addEntrepriseToFirestore) {
       await window.addEntrepriseToFirestore(data);
       // Ajoute aussi à l'array local
       entreprises.unshift(data);
       renderEntreprises();
+
+      const msg = document.getElementById('adminMsg');
+      msg.style.display = 'block';
+      msg.style.color = '#27500A';
+      msg.textContent = ownerUid
+        ? '✅ ' + nom + ' ajoutée ! Un email a été envoyé à ' + email + ' pour définir son mot de passe.'
+        : '✅ ' + nom + ' ajoutée avec succès !';
+
+      // Reset form
+      ['a-nom','a-responsable','a-ville','a-wa','a-email','a-emoji','a-desc','a-logo'].forEach(id => document.getElementById(id).value = '');
+      if(document.getElementById('a-region-nat')) document.getElementById('a-region-nat').value='';
+      if(document.getElementById('a-region-admin')) document.getElementById('a-region-admin').value='';
+      resetAdresses();
+      document.getElementById('a-secteur').value = '';
+
+      setTimeout(() => { msg.style.display = 'none'; }, 4000);
     }
-
-    const msg = document.getElementById('adminMsg');
-    msg.style.display = 'block';
-    msg.style.color = '#27500A';
-    msg.textContent = ownerUid
-      ? '✅ ' + nom + ' ajoutée ! Un email a été envoyé à ' + email + ' pour définir son mot de passe.'
-      : '✅ ' + nom + ' ajoutée avec succès !';
-
-    // Reset form
-    ['a-nom','a-responsable','a-ville','a-wa','a-email','a-emoji','a-desc','a-logo'].forEach(id => document.getElementById(id).value = '');
-    if(document.getElementById('a-region-nat')) document.getElementById('a-region-nat').value='';
-    if(document.getElementById('a-region-admin')) document.getElementById('a-region-admin').value='';
-    resetAdresses();
-    document.getElementById('a-secteur').value = '';
-
-    setTimeout(() => { msg.style.display = 'none'; }, 4000);
   } catch(err) {
     const msg = document.getElementById('adminMsg');
     msg.style.display = 'block';
@@ -4683,7 +4771,7 @@ async function adminAddEntreprise() {
     msg.textContent = '❌ Erreur : ' + err.message;
   }
 
-  btn.textContent = '✦ Enregistrer';
+  btn.textContent = editingId ? '✦ Enregistrer les modifications' : '✦ Enregistrer';
   btn.disabled = false;
 }
 
@@ -5016,6 +5104,7 @@ function removeProductPhoto3() {
 }
 
 async function adminAddProduit() {
+  const editingId = document.getElementById('p-editing-id').value;
   const nom      = document.getElementById('p-nom').value.trim();
   const vendeur  = document.getElementById('p-vendeur').value;
   const categorie= document.getElementById('p-categorie').value;
@@ -5032,7 +5121,7 @@ async function adminAddProduit() {
     return;
   }
 
-  const btn = document.querySelector('#panelProduit button');
+  const btn = document.getElementById('p-submit-btn');
   const statusEl = document.getElementById('p-photo-status');
   btn.textContent = '⏳ Enregistrement...';
   btn.disabled = true;
@@ -5089,35 +5178,66 @@ async function adminAddProduit() {
   const desc      = document.getElementById('p-desc').value.trim();
   const origine   = document.getElementById('p-origine')?.value || 'local';
   const regionNat = document.getElementById('p-region-nat')?.value || '';
-  const data = { nom, vendeur, categorie, prix, region, regionNat, wa: waFinal, emoji, desc, origine, image, image2, image3, dateAjout: new Date().toLocaleDateString('fr-FR') };
+  const data = { nom, vendeur, categorie, prix, region, regionNat, wa: waFinal, emoji, desc, origine, image, image2, image3 };
 
   try {
-    // Sauvegarder dans Firestore collection "produits"
-    if (window.addProduitToFirestore) {
-      await window.addProduitToFirestore(data);
+    if (editingId) {
+      data.dateAjout = (window._adminProduitsCache || []).find(p => p.id === editingId)?.dateAjout || '';
+      await window.updateMyProduit(editingId, data);
+
+      // Met à jour les caches locaux (liste admin + Marché public)
+      const idxCache = (window._adminProduitsCache || []).findIndex(p => p.id === editingId);
+      if (idxCache !== -1) window._adminProduitsCache[idxCache] = { id: editingId, ...data };
+      if (window.produitsFirebase) {
+        const idxFb = window.produitsFirebase.findIndex(p => p.id === editingId);
+        if (idxFb !== -1) window.produitsFirebase[idxFb] = { id: editingId, ...data };
+      }
+      // Reflète aussi dans l'objet local "produits" (regroupé par catégorie) utilisé par renderProduits()
+      ['produits','services','artisanat'].forEach(c => {
+        if (!produits[c]) return;
+        const idx = produits[c].findIndex(p => p.id === editingId);
+        if (idx !== -1) produits[c][idx] = { ...produits[c][idx], ...data };
+      });
+      renderProduits();
+
+      const msg = document.getElementById('adminProduitMsg');
+      msg.style.display = 'block';
+      msg.style.color = '#27500A';
+      msg.textContent = '✅ ' + nom + ' mis à jour avec succès !';
+      setTimeout(() => { msg.style.display = 'none'; }, 4000);
+
+      cancelEditProduit();
+      loadAdminProduitsList();
+    } else {
+      data.dateAjout = new Date().toLocaleDateString('fr-FR');
+      // Sauvegarder dans Firestore collection "produits"
+      if (window.addProduitToFirestore) {
+        await window.addProduitToFirestore(data);
+      }
+
+      // Ajouter dans l'array local
+      if (!produits[categorie]) produits[categorie] = [];
+      produits[categorie].unshift(data);
+      renderProduits();
+
+      const msg = document.getElementById('adminProduitMsg');
+      msg.style.display = 'block';
+      msg.style.color = '#27500A';
+      msg.textContent = '✅ ' + nom + ' ajouté avec succès !';
+
+      // Reset form
+      ['p-nom','p-prix','p-region','p-wa','p-emoji','p-desc'].forEach(id => document.getElementById(id).value = '');
+      if(document.getElementById('p-origine')) document.getElementById('p-origine').value='local';
+      if(document.getElementById('p-region-nat')) document.getElementById('p-region-nat').value='';
+      document.getElementById('p-vendeur').value = '';
+      document.getElementById('p-categorie').value = 'produits';
+      removeProductPhoto();
+      removeProductPhoto2();
+      removeProductPhoto3();
+      statusEl.style.display = 'none';
+      setTimeout(() => { msg.style.display = 'none'; }, 4000);
+      loadAdminProduitsList();
     }
-
-    // Ajouter dans l'array local
-    if (!produits[categorie]) produits[categorie] = [];
-    produits[categorie].unshift(data);
-    renderProduits();
-
-    const msg = document.getElementById('adminProduitMsg');
-    msg.style.display = 'block';
-    msg.style.color = '#27500A';
-    msg.textContent = '✅ ' + nom + ' ajouté avec succès !';
-
-    // Reset form
-    ['p-nom','p-prix','p-region','p-wa','p-emoji','p-desc'].forEach(id => document.getElementById(id).value = '');
-    if(document.getElementById('p-origine')) document.getElementById('p-origine').value='local';
-    if(document.getElementById('p-region-nat')) document.getElementById('p-region-nat').value='';
-    document.getElementById('p-vendeur').value = '';
-    document.getElementById('p-categorie').value = 'produits';
-    removeProductPhoto();
-    removeProductPhoto2();
-    removeProductPhoto3();
-    statusEl.style.display = 'none';
-    setTimeout(() => { msg.style.display = 'none'; }, 4000);
 
   } catch(err) {
     const msg = document.getElementById('adminProduitMsg');
@@ -5126,9 +5246,131 @@ async function adminAddProduit() {
     msg.textContent = '❌ Erreur : ' + err.message;
   }
 
-  btn.textContent = '✦ Enregistrer le produit dans Firebase';
+  btn.textContent = editingId ? '✦ Enregistrer les modifications' : '✦ Enregistrer le produit dans Firebase';
   btn.disabled = false;
 }
+
+function editAdminProduitHandler(id) {
+  const p = (window._adminProduitsCache || window.produitsFirebase || []).find(pp => pp.id === id);
+  if (!p) return;
+
+  switchTab('produit');
+  populateVendeurSelect();
+
+  document.getElementById('p-editing-id').value = id;
+  document.getElementById('p-nom').value = p.nom || '';
+  document.getElementById('p-vendeur').value = p.vendeur || '';
+  document.getElementById('p-categorie').value = p.categorie || 'produits';
+  document.getElementById('p-prix').value = p.prix || '';
+  document.getElementById('p-region').value = p.region || '';
+  document.getElementById('p-wa').value = p.wa || '';
+  document.getElementById('p-emoji').value = p.emoji || '';
+  document.getElementById('p-desc').value = p.desc || '';
+  if (document.getElementById('p-origine')) document.getElementById('p-origine').value = p.origine || 'local';
+  if (document.getElementById('p-region-nat')) document.getElementById('p-region-nat').value = p.regionNat || '';
+
+  const slots = [
+    ['p-image', 'p-photo-img', 'p-photo-preview', 'p-photo-name', 'p-photo-file'],
+    ['p-image2', 'p-photo-img2', 'p-photo-preview2', 'p-photo-name2', 'p-photo-file2'],
+    ['p-image3', 'p-photo-img3', 'p-photo-preview3', 'p-photo-name3', 'p-photo-file3']
+  ];
+  const urls = [p.image, p.image2, p.image3];
+  slots.forEach(([hiddenId, imgId, prevId, nameId, fileId], idx) => {
+    const url = urls[idx];
+    document.getElementById(hiddenId).value = url || '';
+    document.getElementById(fileId).value = '';
+    if (url) {
+      document.getElementById(imgId).src = url;
+      document.getElementById(nameId).textContent = 'Photo actuelle';
+      document.getElementById(prevId).style.display = 'flex';
+    } else {
+      document.getElementById(prevId).style.display = 'none';
+    }
+  });
+
+  document.getElementById('panelProduit-heading').textContent = 'Modifier « ' + (p.nom || '') + ' »';
+  document.getElementById('p-cancel-edit').style.display = 'inline-block';
+  document.getElementById('p-submit-btn').textContent = '✦ Enregistrer les modifications';
+
+  const dashEl = document.getElementById('adminDash');
+  if (dashEl) dashEl.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelEditProduit() {
+  document.getElementById('p-editing-id').value = '';
+  ['p-nom','p-prix','p-region','p-wa','p-emoji','p-desc'].forEach(id => document.getElementById(id).value = '');
+  if (document.getElementById('p-origine')) document.getElementById('p-origine').value = 'local';
+  if (document.getElementById('p-region-nat')) document.getElementById('p-region-nat').value = '';
+  document.getElementById('p-vendeur').value = '';
+  document.getElementById('p-categorie').value = 'produits';
+  removeProductPhoto();
+  removeProductPhoto2();
+  removeProductPhoto3();
+  document.getElementById('panelProduit-heading').textContent = 'Nouveau produit ou service';
+  document.getElementById('p-cancel-edit').style.display = 'none';
+  document.getElementById('p-submit-btn').textContent = '✦ Enregistrer le produit dans Firebase';
+}
+
+async function deleteAdminProduitHandler(id, nom) {
+  if (!confirm('Supprimer définitivement "' + nom + '" du Marché ?\n\nCette action est irréversible.')) return;
+  const motif = demanderMotif('Motif de la suppression de "' + nom + '" (obligatoire) :');
+  if (motif === null) return;
+
+  try {
+    await window.deleteMyProduit(id);
+
+    if (window._adminProduitsCache) window._adminProduitsCache = window._adminProduitsCache.filter(p => p.id !== id);
+    if (window.produitsFirebase) window.produitsFirebase = window.produitsFirebase.filter(p => p.id !== id);
+    ['produits','services','artisanat'].forEach(c => {
+      if (produits[c]) produits[c] = produits[c].filter(p => p.id !== id);
+    });
+    renderProduits();
+    logStaffAction('suppression', 'produit', nom, motif);
+    loadAdminProduitsList();
+  } catch(err) {
+    alert('Erreur lors de la suppression. Réessayez.');
+  }
+}
+
+function loadAdminProduitsList() {
+  const list = window.produitsFirebase || [];
+  window._adminProduitsCache = list;
+  registerPaginatedList('adminProduitsList', list, renderAdminProduitsListPage);
+}
+
+function renderAdminProduitsListPage(pageItems, total, page) {
+  const el = document.getElementById('adminProduitsList');
+  if (!el) return;
+  if (!total) {
+    el.innerHTML = '<p style="color:#aaa;">Aucun produit publié pour le moment.</p>';
+    return;
+  }
+  el.innerHTML = pageItems.map(p => `
+    <div style="background:#fff;border-radius:8px;padding:10px 14px;margin-bottom:8px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
+      ${p.image ? `<img src="${p.image}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;">` : `<span style="font-size:22px;">${p.emoji || '🛍️'}</span>`}
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:13px;color:#111;">${p.nom || '(sans nom)'}</div>
+        <div style="font-size:11px;color:#888;">${p.vendeur || ''} · ${p.prix || ''}</div>
+      </div>
+      <button onclick="editAdminProduitHandler('${p.id}')" title="Modifier"
+        style="background:none;border:none;color:#ccc;cursor:pointer;font-size:15px;padding:4px 6px;" onmouseover="this.style.color='#E8622A'" onmouseout="this.style.color='#ccc'">✏️</button>
+      <button onclick="deleteAdminProduitHandler('${p.id}', '${(p.nom||'').replace(/'/g,"\\'")}')" title="Supprimer"
+        style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;" onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>
+    </div>
+  `).join('') + paginationControlsHtml('adminProduitsList', total);
+}
+
+function filterAdminProduitsList() {
+  const kw = (document.getElementById('ap-search').value || '').toLowerCase().trim();
+  const data = window.produitsFirebase || [];
+  const filtered = !kw ? data : data.filter(p =>
+    (p.nom||'').toLowerCase().includes(kw) ||
+    (p.vendeur||'').toLowerCase().includes(kw) ||
+    (p.categorie||'').toLowerCase().includes(kw)
+  );
+  registerPaginatedList('adminProduitsList', filtered, renderAdminProduitsListPage);
+}
+
 
 // Auto-fill WhatsApp from selected vendeur
 document.addEventListener('DOMContentLoaded', () => {
@@ -5509,6 +5751,10 @@ function renderAdminListPage(pageItems, total, page) {
           </div>
         </div>
         <span style="font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(232,98,42,.1);color:#E8622A;">${e.tag || e.secteur}</span>
+        <button onclick="editEntrepriseHandler('${e.id}')"
+          title="Modifier cette entreprise"
+          style="background:none;border:none;color:#ccc;cursor:pointer;font-size:15px;padding:4px 6px;transition:.15s;"
+          onmouseover="this.style.color='#E8622A'" onmouseout="this.style.color='#ccc'">✏️</button>
         <button onclick="supprimerEntreprise('${e.id}', '${(e.nom||'').replace(/'/g,"\\'")}')"
           title="Supprimer cette entreprise"
           style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;transition:.15s;"
@@ -8032,7 +8278,11 @@ function trackRecherche(terme) {
 
     <!-- Tab ADD -->
     <div id="panelAdd" style="padding:28px;">
-      <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:20px;">Nouvelle entreprise</div>
+      <input type="hidden" id="a-editing-id" value="">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div style="font-size:14px; font-weight:700; color:#111;" id="panelAdd-heading">Nouvelle entreprise</div>
+        <button type="button" id="a-cancel-edit" onclick="cancelEditEntreprise()" style="display:none;background:none;border:none;color:#888;font-family:'Syne';font-size:11px;font-weight:600;cursor:pointer;text-decoration:underline;">✕ Annuler la modification</button>
+      </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
         <div>
@@ -8188,7 +8438,7 @@ function trackRecherche(terme) {
         <input id="a-logo" type="hidden" value="">
       </div>
 
-      <button onclick="adminAddEntreprise()"
+      <button id="a-submit-btn" onclick="adminAddEntreprise()"
         style="width:100%; padding:13px; background:#E8622A; color:#fff; border:none; border-radius:8px; font-family:'Syne'; font-size:14px; font-weight:700; cursor:pointer;">
         ✦ Enregistrer
       </button>
@@ -8272,7 +8522,11 @@ function trackRecherche(terme) {
 
     <!-- Tab PRODUIT -->
     <div id="panelProduit" style="padding:28px; display:none;">
-      <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:20px;">Nouveau produit ou service</div>
+      <input type="hidden" id="p-editing-id" value="">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div style="font-size:14px; font-weight:700; color:#111;" id="panelProduit-heading">Nouveau produit ou service</div>
+        <button type="button" id="p-cancel-edit" onclick="cancelEditProduit()" style="display:none;background:none;border:none;color:#888;font-family:'Syne';font-size:11px;font-weight:600;cursor:pointer;text-decoration:underline;">✕ Annuler la modification</button>
+      </div>
 
       <div style="margin-bottom:14px;">
         <label style="font-size:10px; font-weight:700; letter-spacing:.12em; color:#888; display:block; margin-bottom:6px;">NOM DU PRODUIT / SERVICE *</label>
@@ -8403,7 +8657,7 @@ function trackRecherche(terme) {
         <div id="p-photo-status" style="font-size:11px; color:#888; margin-top:6px; display:none;"></div>
       </div>
 
-      <button onclick="adminAddProduit()"
+      <button id="p-submit-btn" onclick="adminAddProduit()"
         style="width:100%; padding:13px; background:#E8622A; color:#fff; border:none; border-radius:8px; font-family:'Syne'; font-size:14px; font-weight:700; cursor:pointer;">
         ✦ Enregistrer le produit dans Firebase
       </button>
@@ -8468,6 +8722,16 @@ function trackRecherche(terme) {
           <div id="produitImportBar" style="height:100%;background:#E8622A;border-radius:20px;width:0%;transition:width .3s;"></div>
         </div>
         <div style="font-size:11px;color:#888;margin-top:4px;" id="produitImportCounter"></div>
+      </div>
+
+      <!-- Produits déjà publiés -->
+      <div style="margin-top:32px;padding-top:20px;border-top:1px solid #eee;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+          <div style="font-size:14px;font-weight:700;color:#111;">Produits publiés</div>
+          <input type="text" id="ap-search" oninput="filterAdminProduitsList()" placeholder="🔍 Rechercher un produit, vendeur..."
+            style="padding:8px 12px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;min-width:220px;">
+        </div>
+        <div id="adminProduitsList" style="font-size:13px;color:#888;">Chargement...</div>
       </div>
     </div>
 
