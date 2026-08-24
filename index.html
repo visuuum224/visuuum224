@@ -610,6 +610,21 @@ section { padding: 96px 6vw; width: 100%; }
   position: relative; z-index: 1; display: block;
   width: 100%; height: 100%; object-fit: contain;
 }
+.prix-peek-wrap {
+  position: relative; width: 100%; height: 140px;
+  border-radius: 6px; overflow: hidden; border: 1px solid rgba(0,0,0,.08);
+  background: #fff; display: flex; align-items: stretch;
+}
+.prix-peek-side { flex: 0 0 16%; position: relative; overflow: hidden; cursor: pointer; }
+.prix-peek-side img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.prix-peek-side::after { content: ''; position: absolute; inset: 0; }
+.prix-peek-side.left::after { background: linear-gradient(to right, rgba(255,255,255,.45), rgba(255,255,255,.1)); }
+.prix-peek-side.right::after { background: linear-gradient(to left, rgba(255,255,255,.45), rgba(255,255,255,.1)); }
+.prix-peek-main { flex: 1 1 68%; display: flex; align-items: center; justify-content: center; padding: 4px; }
+.prix-peek-main img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.prix-carousel-dots { display: flex; justify-content: center; gap: 5px; margin-top: 8px; }
+.prix-carousel-dots span { width: 6px; height: 6px; border-radius: 50%; background: rgba(0,0,0,.15); cursor: pointer; }
+.prix-carousel-dots span.on { background: var(--orange); width: 16px; border-radius: 4px; }
 .prix-rang {
   font-family: 'Bebas Neue'; font-size: 20px; color: var(--orange);
   letter-spacing: 1px;
@@ -3617,6 +3632,16 @@ const DEFI_FB_FALLBACK_URL = 'https://www.facebook.com/visuuum224'; // à rempla
 let defiParticipantsCache = [];
 let defiVotesCache = [];
 let defiMancheCache = null;
+let defiPrixPublicCache = [];   // dernier tableau de cadeaux rendu côté public (pour la navigation du carrousel)
+let defiPrixCarouselIndex = {}; // index de la photo actuellement affichée, par id de cadeau
+
+// Un cadeau peut avoir 0 à 3 photos. Compatible avec les cadeaux créés avant
+// l'ajout du multi-photos (qui n'avaient qu'un champ "image" unique).
+function getPrixImages(p) {
+  if (Array.isArray(p.images) && p.images.length) return p.images.filter(Boolean);
+  if (p.image) return [p.image];
+  return [];
+}
 
 // Normalise un numéro guinéen pour servir de clé anti-doublon : on ne garde
 // que les 9 derniers chiffres, quel que soit le format saisi (+224, 00224, espaces...)
@@ -3748,20 +3773,54 @@ function openDefiFacebook() {
 function renderDefiPrix(prix) {
   const el = document.getElementById('defiPrixGrid');
   if (!el || !prix.length) return;
+  defiPrixPublicCache = prix; // pour que la navigation du carrousel puisse re-rendre
   const medailles = { 1: '🥇', 2: '🥈', 3: '🥉' };
   el.innerHTML = prix.map(p => `
     <div class="prix-card">
-      ${p.image ? `
-      <div class="prix-img-wrap">
-        <div class="prix-img-bg" style="background-image:url('${p.image}')"></div>
-        <img src="${p.image}" alt="" class="prix-img-fg">
-      </div>` : ''}
+      ${renderPrixImageBlock(p)}
       <div class="prix-rang">${medailles[p.rang] || '🎁'} ${p.rang ? p.rang + (p.rang === 1 ? 'er' : 'e') + ' prix' : 'Prix'}</div>
       <div class="prix-titre">${p.titre || ''}</div>
       ${p.description ? `<div class="prix-desc">${p.description}</div>` : ''}
       ${p.partenaire ? `<div class="prix-sponsor">Offert par ${p.partenaire}</div>` : ''}
     </div>
   `).join('');
+}
+
+// Une seule photo : fond flouté agrandi (rien à "peek"). Plusieurs photos :
+// carrousel avec aperçu partiel de la photo précédente/suivante sur les
+// bords, cliquable, plus des points de navigation en dessous.
+function renderPrixImageBlock(p) {
+  const images = getPrixImages(p);
+  if (!images.length) return '';
+
+  if (images.length === 1) {
+    return `
+    <div class="prix-img-wrap">
+      <div class="prix-img-bg" style="background-image:url('${images[0]}')"></div>
+      <img src="${images[0]}" alt="" class="prix-img-fg">
+    </div>`;
+  }
+
+  const idx = defiPrixCarouselIndex[p.id] || 0;
+  const prevIdx = (idx - 1 + images.length) % images.length;
+  const nextIdx = (idx + 1) % images.length;
+  const dots = images.map((_, i) =>
+    `<span class="${i === idx ? 'on' : ''}" onclick="goToPrixSlide('${p.id}', ${i})"></span>`
+  ).join('');
+
+  return `
+    <div class="prix-peek-wrap">
+      <div class="prix-peek-side left" onclick="goToPrixSlide('${p.id}', ${prevIdx})"><img src="${images[prevIdx]}" alt=""></div>
+      <div class="prix-peek-main"><img src="${images[idx]}" alt=""></div>
+      <div class="prix-peek-side right" onclick="goToPrixSlide('${p.id}', ${nextIdx})"><img src="${images[nextIdx]}" alt=""></div>
+    </div>
+    <div class="prix-carousel-dots">${dots}</div>
+  `;
+}
+
+function goToPrixSlide(prixId, index) {
+  defiPrixCarouselIndex[prixId] = index;
+  renderDefiPrix(defiPrixPublicCache);
 }
 
 function renderDefiClassement() {
@@ -7323,13 +7382,28 @@ async function loadDefiVotesAdmin() {
 }
 
 // -- Sous-onglet CADEAUX --
-function previewDefiPrixImage(input) {
+// Jusqu'à 3 photos par cadeau. dpImageState[n] contient soit un File choisi
+// localement (pas encore uploadé), soit une URL existante (mode édition),
+// soit null si l'emplacement est vide/retiré.
+let dpImageState = { 1: null, 2: null, 3: null };
+
+function previewDefiPrixImage(input, slot) {
   const file = input.files[0];
   if (!file) return;
-  const preview = document.getElementById('dp-image-preview');
-  const img = document.getElementById('dp-image-img');
-  img.src = URL.createObjectURL(file);
-  preview.style.display = 'flex';
+  dpImageState[slot] = file;
+  document.getElementById('dp-image-img-' + slot).src = URL.createObjectURL(file);
+  document.getElementById('dp-image-img-' + slot).style.display = 'block';
+  document.getElementById('dp-image-placeholder-' + slot).style.display = 'none';
+  document.getElementById('dp-image-remove-' + slot).style.display = 'block';
+}
+
+function removeDefiPrixImage(slot) {
+  dpImageState[slot] = null;
+  document.getElementById('dp-image-file-' + slot).value = '';
+  document.getElementById('dp-image-img-' + slot).src = '';
+  document.getElementById('dp-image-img-' + slot).style.display = 'none';
+  document.getElementById('dp-image-placeholder-' + slot).style.display = 'block';
+  document.getElementById('dp-image-remove-' + slot).style.display = 'none';
 }
 
 function resetDefiPrixForm() {
@@ -7338,9 +7412,7 @@ function resetDefiPrixForm() {
   document.getElementById('dp-titre').value = '';
   document.getElementById('dp-description').value = '';
   document.getElementById('dp-partenaire').value = '';
-  document.getElementById('dp-image-file').value = '';
-  document.getElementById('dp-image-preview').style.display = 'none';
-  document.getElementById('dp-image-img').src = '';
+  [1, 2, 3].forEach(removeDefiPrixImage);
   const btn = document.getElementById('dp-save-btn');
   btn.textContent = '✦ Ajouter le cadeau';
   btn.disabled = false;
@@ -7409,18 +7481,25 @@ async function saveDefiPrixHandler() {
   btn.disabled = true;
   btn.textContent = '⏳ Enregistrement...';
 
-  const existing = editingId ? defiPrixCache.find(p => p.id === editingId) : null;
-  let image = existing ? (existing.image || '') : '';
-  const fileInput = document.getElementById('dp-image-file');
-  if (fileInput.files.length > 0) {
-    try {
-      image = await uploadToImgbb(fileInput.files[0]);
-    } catch(err) {
-      console.warn('Upload image cadeau échoué:', err);
+  // Consolide les 3 emplacements photo dans l'ordre : upload de tout nouveau
+  // fichier choisi, conservation des URL existantes (mode édition), en
+  // ignorant les emplacements vides/retirés.
+  const images = [];
+  for (const slot of [1, 2, 3]) {
+    const val = dpImageState[slot];
+    if (!val) continue;
+    if (val instanceof File) {
+      try {
+        images.push(await uploadToImgbb(val));
+      } catch(err) {
+        console.warn('Upload photo ' + slot + ' échoué:', err);
+      }
+    } else if (typeof val === 'string') {
+      images.push(val);
     }
   }
 
-  const data = { rang, titre, description, partenaire, image };
+  const data = { rang, titre, description, partenaire, images };
 
   try {
     if (editingId) {
@@ -7461,13 +7540,22 @@ function editDefiPrixHandler(id) {
   document.getElementById('dp-titre').value = p.titre || '';
   document.getElementById('dp-description').value = p.description || '';
   document.getElementById('dp-partenaire').value = p.partenaire || '';
-  document.getElementById('dp-image-file').value = '';
-  if (p.image) {
-    document.getElementById('dp-image-img').src = p.image;
-    document.getElementById('dp-image-preview').style.display = 'flex';
-  } else {
-    document.getElementById('dp-image-preview').style.display = 'none';
-  }
+
+  const images = getPrixImages(p);
+  [1, 2, 3].forEach(slot => {
+    const url = images[slot - 1];
+    document.getElementById('dp-image-file-' + slot).value = '';
+    if (url) {
+      dpImageState[slot] = url; // URL déjà en ligne, pas un nouveau fichier
+      document.getElementById('dp-image-img-' + slot).src = url;
+      document.getElementById('dp-image-img-' + slot).style.display = 'block';
+      document.getElementById('dp-image-placeholder-' + slot).style.display = 'none';
+      document.getElementById('dp-image-remove-' + slot).style.display = 'block';
+    } else {
+      removeDefiPrixImage(slot);
+    }
+  });
+
   document.getElementById('dp-save-btn').textContent = '✦ Enregistrer les modifications';
   const dashEl = document.getElementById('adminDash');
   if (dashEl) dashEl.scrollTo({ top: 0, behavior: 'smooth' });
@@ -7514,17 +7602,19 @@ async function refreshDefiPrixListOnly() {
       return;
     }
     const medailles = { 1: '🥇', 2: '🥈', 3: '🥉' };
-    el.innerHTML = defiPrixCache.map(p => `
+    el.innerHTML = defiPrixCache.map(p => {
+      const images = getPrixImages(p);
+      return `
       <div style="background:#fff;border-radius:8px;padding:10px 14px;margin-bottom:8px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
-        ${p.image ? `<img src="${p.image}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;">` : `<span style="font-size:20px;">${medailles[p.rang] || '🎁'}</span>`}
+        ${images.length ? `<img src="${images[0]}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;">` : `<span style="font-size:20px;">${medailles[p.rang] || '🎁'}</span>`}
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;font-size:13px;color:#111;">${p.titre}</div>
+          <div style="font-weight:700;font-size:13px;color:#111;">${p.titre} ${images.length > 1 ? `<span style="font-size:9px;font-weight:700;color:#888;background:#f0f0f0;padding:2px 6px;border-radius:10px;">${images.length} photos</span>` : ''}</div>
           <div style="font-size:11px;color:#888;">${p.description || ''}${p.partenaire ? ' · Offert par ' + p.partenaire : ''}</div>
         </div>
         <button type="button" onclick="editDefiPrixHandler('${p.id}')" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:15px;padding:4px 6px;" onmouseover="this.style.color='#E8622A'" onmouseout="this.style.color='#ccc'">✏️</button>
         <button type="button" onclick="deleteDefiPrixHandler('${p.id}', '${(p.titre||'').replace(/'/g,"\\'")}')" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:4px 6px;" onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>
       </div>
-    `).join('');
+    `; }).join('');
   } catch(err) {
     el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
   }
@@ -8527,21 +8617,41 @@ function trackRecherche(terme) {
           style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">
-        <div>
-          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">PARTENAIRE / SPONSOR</label>
-          <input id="dp-partenaire" type="text" placeholder="Ex : Orange Guinée"
-            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
-        </div>
-        <div>
-          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">PHOTO (optionnel)</label>
-          <input type="file" id="dp-image-file" accept="image/*" style="display:none;" onchange="previewDefiPrixImage(this)">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <button type="button" onclick="document.getElementById('dp-image-file').click()"
-              style="padding:9px 18px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:600;color:#555;cursor:pointer;">📤 Choisir</button>
-            <div id="dp-image-preview" style="display:none;align-items:center;">
-              <img id="dp-image-img" src="" style="width:34px;height:34px;border-radius:6px;object-fit:cover;border:1px solid #ddd;">
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">PARTENAIRE / SPONSOR</label>
+        <input id="dp-partenaire" type="text" placeholder="Ex : Orange Guinée"
+          style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+      </div>
+
+      <div class="form-group" style="margin-bottom:20px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">PHOTOS (jusqu'à 3, optionnel) — la 1ère devient la couverture</label>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+          <div>
+            <input type="file" id="dp-image-file-1" accept="image/*" style="display:none;" onchange="previewDefiPrixImage(this, 1)">
+            <div onclick="document.getElementById('dp-image-file-1').click()"
+              style="width:100%;height:80px;border:1.5px dashed #ddd;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:#fafafa;">
+              <span id="dp-image-placeholder-1" style="font-size:11px;color:#aaa;">📤 Photo 1</span>
+              <img id="dp-image-img-1" src="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
             </div>
+            <button type="button" id="dp-image-remove-1" onclick="event.stopPropagation();removeDefiPrixImage(1)" style="display:none;width:100%;margin-top:4px;padding:4px;background:none;border:none;color:#A32D2D;font-size:10px;cursor:pointer;">✕ retirer</button>
+          </div>
+          <div>
+            <input type="file" id="dp-image-file-2" accept="image/*" style="display:none;" onchange="previewDefiPrixImage(this, 2)">
+            <div onclick="document.getElementById('dp-image-file-2').click()"
+              style="width:100%;height:80px;border:1.5px dashed #ddd;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:#fafafa;">
+              <span id="dp-image-placeholder-2" style="font-size:11px;color:#aaa;">📤 Photo 2</span>
+              <img id="dp-image-img-2" src="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
+            </div>
+            <button type="button" id="dp-image-remove-2" onclick="event.stopPropagation();removeDefiPrixImage(2)" style="display:none;width:100%;margin-top:4px;padding:4px;background:none;border:none;color:#A32D2D;font-size:10px;cursor:pointer;">✕ retirer</button>
+          </div>
+          <div>
+            <input type="file" id="dp-image-file-3" accept="image/*" style="display:none;" onchange="previewDefiPrixImage(this, 3)">
+            <div onclick="document.getElementById('dp-image-file-3').click()"
+              style="width:100%;height:80px;border:1.5px dashed #ddd;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:#fafafa;">
+              <span id="dp-image-placeholder-3" style="font-size:11px;color:#aaa;">📤 Photo 3</span>
+              <img id="dp-image-img-3" src="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
+            </div>
+            <button type="button" id="dp-image-remove-3" onclick="event.stopPropagation();removeDefiPrixImage(3)" style="display:none;width:100%;margin-top:4px;padding:4px;background:none;border:none;color:#A32D2D;font-size:10px;cursor:pointer;">✕ retirer</button>
           </div>
         </div>
       </div>
