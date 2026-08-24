@@ -1998,7 +1998,7 @@ footer {
 <section id="mission">
   <div class="section-label reveal">Notre mission</div>
   <h2 class="section-title reveal">POURQUOI VISUUUM 224 ?</h2>
-  <p class="section-sub reveal">Une plateforme unique qui combine vitrine digitale, annuaire d'Entrepreneurs et marché en ligne — pour que chaque Entrepreneur guinéen soit visible, crédible et accessible.</p>
+  <p class="section-sub reveal">Une plateforme unique qui combine vitrine digitale, annuaire des acteurs économiques et marché en ligne — pour que chaque acteur économique guinéen soit visible, crédible et accessible.</p>
   <div class="mission-grid reveal">
     <div class="mission-card">
       <div class="mission-header">
@@ -2033,11 +2033,11 @@ footer {
 <!-- ── ANNUAIRE ── -->
 <section id="annuaire">
   <div class="section-label reveal"><span class="nimba-rep">Nimb<svg class="nimba-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 46" aria-label="a"><path d="M14 2C7 2 3 8 3 17v2h4v-2c0-6 3-9 7-9s7 3 7 9v2h4v-2C25 8 21 2 14 2z" fill="currentColor"/><ellipse cx="14" cy="24" rx="5" ry="6.5" fill="currentColor"/><rect x="11" y="30" width="6" height="3.5" rx="1" fill="currentColor"/><rect x="2" y="33" width="24" height="3" rx="1.5" fill="currentColor"/><circle cx="8" cy="40" r="4.2" fill="currentColor"/><circle cx="20" cy="40" r="4.2" fill="currentColor"/><rect x="9" y="42" width="10" height="3.5" rx="1" fill="currentColor"/></svg>'Rep</span></div>
-  <h2 class="section-title reveal">LES ENTREPRENEURS GUINÉENS</h2>
-  <p class="section-sub reveal">Trouve et contacte directement les meilleurs Entrepreneurs de Guinée. Tous secteurs, toutes régions.</p>
+  <h2 class="section-title reveal">LES ACTEURS ÉCONOMIQUES GUINÉENS</h2>
+  <p class="section-sub reveal">Trouve et contacte directement les meilleurs acteurs économiques de Guinée. Tous secteurs, toutes régions.</p>
 
   <div class="search-bar reveal">
-    <input type="text" class="search-input" id="searchInput" placeholder="Rechercher un Entrepreneur, un produit, une ville..." oninput="filterEntreprises()">
+    <input type="text" class="search-input" id="searchInput" placeholder="Rechercher un acteur économique, un produit, une ville..." oninput="filterEntreprises()">
   </div>
 
   <div class="filters reveal" id="filters" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:40px;">
@@ -2589,11 +2589,36 @@ const VISUUUM_SECTEURS = [
   "🌾 Agriculture & Agroalimentaire", "🛍️ Commerce & Vente", "🧵 Artisanat & Mode",
   "🏗️ BTP & Immobilier", "🍽️ Restauration & Food", "💊 Santé & Beauté",
   "💻 Tech & Numérique", "🏦 Finance & Banque", "⛏️ Mines & Ressources",
-  "⚡ Énergie", "🚚 Transport & Logistique", "🎓 Éducation & Formation"
+  "⚡ Énergie", "🚚 Transport & Logistique", "🎓 Éducation & Formation",
+  "🏛️ Institution & Gouvernement", "🤝 ONG & Association"
 ];
-const VISUUUM_SECTEURS_TAGS = ["Agriculture","Commerce","Artisanat","BTP","Restauration","Santé","Tech","Finance","Mines","Énergie","Transport","Éducation"];
+const VISUUUM_SECTEURS_TAGS = ["Agriculture","Commerce","Artisanat","BTP","Restauration","Santé","Tech","Finance","Mines","Énergie","Transport","Éducation","Institution","ONG"];
 const VISUUUM_REGIONS_NAT = ["Guinée Maritime","Fouta Djallon","Haute Guinée","Guinée Forestière"];
 const VISUUUM_REGIONS_ADMIN = ["Conakry","Kindia","Boké","Labé","Mamou","Kankan","Faranah","Siguiri","N'Zérékoré","Beyla"];
+
+// Remplit dynamiquement les 4 listes déroulantes "Secteur" du site (filtre
+// public Nimba'Rep, formulaire d'inscription public, formulaire admin
+// "Ajouter une entreprise" x2) à partir de VISUUUM_SECTEURS ci-dessus — c'est
+// désormais la SEULE liste à modifier pour ajouter/retirer un secteur ; le
+// HTML statique de ces <select> n'est qu'un état initial, immédiatement
+// remplacé au chargement de la page.
+function populateSecteurSelects() {
+  const labelOptions = VISUUUM_SECTEURS.map(s => `<option value="${s}">${s}</option>`).join('');
+  const tagOptions = VISUUUM_SECTEURS.map((s, i) => `<option value="${VISUUUM_SECTEURS_TAGS[i]}">${s}</option>`).join('');
+
+  const filterSel = document.getElementById('filterSecteur');
+  if (filterSel) filterSel.innerHTML = '<option value="">🏷️ Tous les secteurs</option>' + tagOptions;
+
+  const fSel = document.getElementById('f-secteur');
+  if (fSel) fSel.innerHTML = '<option value="">Choisir ...</option>' + labelOptions;
+
+  const aSecteurSel = document.getElementById('a-secteur');
+  if (aSecteurSel) aSecteurSel.innerHTML = '<option value="">Choisir...</option>' + labelOptions;
+
+  const aTagSel = document.getElementById('a-tag');
+  if (aTagSel) aTagSel.innerHTML = tagOptions;
+}
+document.addEventListener('DOMContentLoaded', populateSecteurSelects);
 
 // ── DATA ──────────────────────────────────────────────────────────────────────
 const partenaires = [
@@ -3087,7 +3112,7 @@ function renderEPage() {
   // Render pagination
   renderEPagination(totalPages);
   document.getElementById('entreprisesInfo').textContent =
-    `Affichage ${start + 1}–${Math.min(start + EPP, eFiltered.length)} sur ${eFiltered.length} entrepreneur${eFiltered.length > 1 ? 's' : ''}`;
+    `Affichage ${start + 1}–${Math.min(start + EPP, eFiltered.length)} sur ${eFiltered.length} acteur${eFiltered.length > 1 ? 's' : ''} économique${eFiltered.length > 1 ? 's' : ''}`;
 
   // Scroll to section top
   if (eCurrentPage > 1) {
