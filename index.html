@@ -524,7 +524,22 @@ section { padding: 96px 6vw; width: 100%; }
   width: 100%;
 }
 .defi-title span { color: #E8622A; }
-.defi-sub { font-size: 16px; color: rgba(0,0,0,.65); max-width: 480px; line-height: 1.8; margin-bottom: 40px; }
+.defi-sub { font-size: 16px; color: rgba(0,0,0,.65); max-width: 480px; line-height: 1.8; margin-bottom: 20px; }
+.defi-manche-badge {
+  display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: rgba(0,0,0,.06); border-radius: 30px; padding: 9px 20px 9px 18px;
+  margin-bottom: 40px; font-size: 12px;
+}
+.defi-manche-titre { font-weight: 700; color: #111; }
+.defi-manche-statut {
+  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 3px 10px; border-radius: 20px; white-space: nowrap;
+}
+.defi-manche-statut.st-inscriptions { background: rgba(184,118,14,.14); color: #B8760E; }
+.defi-manche-statut.st-vote { background: rgba(46,125,70,.14); color: #2E7D46; }
+.defi-manche-statut.st-cloturee { background: rgba(163,45,45,.12); color: #A32D2D; }
+.defi-manche-dates { color: rgba(0,0,0,.5); white-space: nowrap; }
+.defi-manche-empty { font-size: 14px; color: rgba(0,0,0,.5); margin-bottom: 40px; }
 .defi-rules {
   display: grid; grid-template-columns: repeat(3, 1fr);
   gap: 16px; margin-bottom: 48px;
@@ -2131,6 +2146,12 @@ footer {
     <div class="defi-tag reveal">Campagne nationale</div>
     <h2 class="defi-title reveal">#DÉFI<span>-V224</span></h2>
     <p class="defi-sub reveal">30 jours · 100% local · 100% guinéen. Publie ta vidéo, le public vote, tu gagnes des prix.</p>
+    <div class="defi-manche-badge reveal" id="defi-manche-badge" style="display:none;">
+      <span class="defi-manche-titre" id="defi-manche-titre-txt"></span>
+      <span class="defi-manche-statut" id="defi-manche-statut-txt"></span>
+      <span class="defi-manche-dates" id="defi-manche-dates-txt"></span>
+    </div>
+    <p class="defi-manche-empty reveal" id="defi-manche-empty" style="display:none;">Aucune manche du #Défi-V224 en cours pour le moment — reviens bientôt !</p>
     <div class="defi-rules reveal">
       <div class="defi-rule">
         <div class="defi-rule-header">
@@ -2167,7 +2188,7 @@ footer {
     </div>
 
     <div class="defi-extra reveal">
-      <div class="defi-subhead">Cadeaux à gagner</div>
+      <div class="defi-subhead" id="defi-prix-subhead">Cadeaux à gagner</div>
       <div class="defi-prizes-grid" id="defiPrixGrid">
         <div class="prix-card">
           <div class="prix-rang">🥇 1er prix</div>
@@ -2178,7 +2199,7 @@ footer {
     </div>
 
     <div class="defi-extra reveal">
-      <div class="defi-subhead">Classement en direct</div>
+      <div class="defi-subhead" id="defi-classement-subhead">Classement en direct</div>
       <div class="classement-list" id="defiClassementList">
         <p style="font-size:13px;color:rgba(0,0,0,.5);">Aucun participant validé pour le moment — sois le premier à t'inscrire !</p>
       </div>
@@ -3602,6 +3623,7 @@ async function initDefiPublic() {
   } catch(e) { console.warn('Chargement manche défi échoué', e); }
   updateDefiFacebookButton();
   updateDefiButtonsState();
+  renderDefiMancheInfo();
 
   if (!defiMancheCache) return; // aucune manche active : les placeholders HTML restent affichés
 
@@ -3619,6 +3641,55 @@ async function initDefiPublic() {
   } catch(e) { console.warn('Chargement classement défi échoué', e); }
 }
 window.initDefiPublic = initDefiPublic;
+
+// Formate une date ISO ("2026-10-01") en format lisible français ("01/10/2026")
+function formatDateFr(iso) {
+  if (!iso) return null;
+  const parts = iso.split('-');
+  if (parts.length !== 3) return iso;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+// Affiche un bandeau identifiant clairement la manche active (titre, statut,
+// dates) juste sous le sous-titre de la section, et répercute son titre dans
+// les intitulés "Cadeaux à gagner" / "Classement en direct" — indispensable
+// maintenant que plusieurs manches peuvent se succéder dans le temps.
+function renderDefiMancheInfo() {
+  const badge = document.getElementById('defi-manche-badge');
+  const empty = document.getElementById('defi-manche-empty');
+  const prixHead = document.getElementById('defi-prix-subhead');
+  const classHead = document.getElementById('defi-classement-subhead');
+  if (!badge || !empty) return;
+
+  if (!defiMancheCache) {
+    badge.style.display = 'none';
+    empty.style.display = 'block';
+    if (prixHead) prixHead.textContent = 'Cadeaux à gagner';
+    if (classHead) classHead.textContent = 'Classement en direct';
+    return;
+  }
+
+  empty.style.display = 'none';
+  badge.style.display = 'inline-flex';
+
+  const titre = defiMancheCache.titre || '#Défi-V224';
+  document.getElementById('defi-manche-titre-txt').textContent = titre;
+
+  const statutEl = document.getElementById('defi-manche-statut-txt');
+  const statutLabel = { inscriptions: 'Inscriptions ouvertes', vote: 'Vote ouvert', cloturee: 'Clôturée' };
+  const statut = defiMancheCache.statutVote || 'inscriptions';
+  statutEl.textContent = statutLabel[statut] || statut;
+  statutEl.className = 'defi-manche-statut st-' + statut;
+
+  const debut = formatDateFr(defiMancheCache.dateDebut);
+  const fin = formatDateFr(defiMancheCache.dateFin);
+  const datesEl = document.getElementById('defi-manche-dates-txt');
+  datesEl.textContent = (debut && fin) ? `${debut} → ${fin}` : '';
+  datesEl.style.display = (debut && fin) ? 'inline' : 'none';
+
+  if (prixHead) prixHead.textContent = `Cadeaux à gagner — ${titre}`;
+  if (classHead) classHead.textContent = `Classement en direct — ${titre}`;
+}
 
 function updateDefiFacebookButton() {
   const btn = document.getElementById('defi-fb-btn');
@@ -7004,6 +7075,8 @@ async function saveDefiMancheHandler() {
       if (editingId === defiActiveMancheId) {
         defiMancheCache = { id: editingId, ...data };
         updateDefiFacebookButton();
+        updateDefiButtonsState();
+        renderDefiMancheInfo();
       }
     } else {
       const ref = await window.createDefiManche(data);
@@ -7043,8 +7116,12 @@ async function activerDefiMancheHandler(id) {
   const m = defiManchesCache.find(mm => mm.id === id);
   try {
     await window.setDefiActiveManche(id);
+    defiActiveMancheId = id;
     logStaffAction('activation', 'défi-manche', (m && m.titre) || id);
     await refreshDefiManchesList();
+    // Recharge entièrement l'aperçu public (bandeau, cadeaux, classement)
+    // puisque la manche affichée au public vient de changer.
+    if (window.initDefiPublic) await window.initDefiPublic();
   } catch(err) {
     alert("Erreur lors de l'activation. Réessaie.");
   }
@@ -7059,6 +7136,8 @@ async function deleteDefiMancheHandler(id, titre) {
     if (id === defiActiveMancheId) {
       defiMancheCache = null;
       updateDefiFacebookButton();
+      updateDefiButtonsState();
+      renderDefiMancheInfo();
     }
     logStaffAction('suppression', 'défi-manche', titre, motif);
     await refreshDefiManchesList();
