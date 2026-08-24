@@ -114,6 +114,7 @@
   --gray:    #888888;
   --text:    #111111;
   --text2:   #555555;
+  --text3:   #999999;
   --border:  rgba(0,0,0,.09);
 }
 html { scroll-behavior: smooth; }
@@ -645,6 +646,11 @@ section { padding: 96px 6vw; width: 100%; }
 .classement-row:nth-child(1) .classement-rang { color: var(--orange); }
 .classement-nom { font-size: 13px; font-weight: 700; color: #111; flex: 1; min-width: 0; }
 .classement-ville { font-size: 11px; color: rgba(0,0,0,.45); font-weight: 400; }
+.classement-videos-badge {
+  font-size: 9px; font-weight: 700; color: var(--orange);
+  background: rgba(232,98,42,.1); padding: 2px 8px; border-radius: 10px;
+  margin-left: 8px; white-space: nowrap;
+}
 .classement-votes { font-size: 12px; font-weight: 700; color: var(--orange); flex-shrink: 0; }
 .classement-vote-btn {
   background: #111; color: #fff; border: none; border-radius: 4px;
@@ -1196,7 +1202,7 @@ footer {
     <button class="modal-close" onclick="closeDefiInscriptionModal()">✕</button>
     <div style="padding:36px 32px 32px;">
       <div style="font-family:'Bebas Neue';font-size:26px;letter-spacing:1px;color:#111;margin-bottom:6px;">Inscris ta vidéo</div>
-      <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px;">Ta vidéo doit déjà être publiée sur Facebook, Instagram ou WhatsApp avec le hashtag #Défi-V224. Colle le lien ici pour l'inscrire au vote.</p>
+      <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px;">Ta vidéo doit déjà être publiée sur Facebook, Instagram, WhatsApp ou YouTube avec le hashtag #Défi-V224. Colle le lien ici pour l'inscrire au vote.</p>
 
       <div class="form-group">
         <label class="form-label">Nom et prénom *</label>
@@ -1215,10 +1221,21 @@ footer {
           <option value="YouTube">YouTube</option>
         </select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Lien de la vidéo *</label>
-        <input type="url" class="form-input" id="di-lien" placeholder="https://...">
+
+      <div class="form-group" style="margin-bottom:8px;">
+        <label class="form-label">Lien de ta vidéo *</label>
+        <input type="url" class="form-input" id="di-lien-1" placeholder="https://...">
       </div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label class="form-label" style="font-weight:400;color:var(--text3);">2e vidéo (optionnel)</label>
+        <input type="url" class="form-input" id="di-lien-2" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="font-weight:400;color:var(--text3);">3e vidéo (optionnel)</label>
+        <input type="url" class="form-input" id="di-lien-3" placeholder="https://...">
+      </div>
+      <p style="font-size:11px;color:var(--orange);background:rgba(232,98,42,.08);border-radius:6px;padding:9px 12px;line-height:1.6;margin-bottom:20px;">💡 Une seule vidéo suffit pour t'inscrire, mais publier plusieurs vidéos tout au long des 30 jours augmente ta visibilité et tes chances d'être voté.</p>
+
       <div class="form-group">
         <label class="form-label">WhatsApp (pour te recontacter) *</label>
         <input type="tel" class="form-input" id="di-whatsapp" placeholder="+224 6XX XXX XXX">
@@ -1264,6 +1281,57 @@ footer {
         Voter
       </button>
       <p id="dv-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ── #DÉFI-V224 : MODALE ÉDITION PARTICIPANT (ADMIN) ── -->
+<div class="modal-overlay" id="defiEditParticipantModal" onclick="if(event.target===this)closeDefiEditParticipantModal()">
+  <div class="modal-box" style="max-width:520px;">
+    <button class="modal-close" onclick="closeDefiEditParticipantModal()">✕</button>
+    <div style="padding:36px 32px 32px;">
+      <div style="font-family:'Bebas Neue';font-size:26px;letter-spacing:1px;color:#111;margin-bottom:6px;">Modifier la candidature</div>
+      <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px;">Utile pour ajouter les nouveaux liens vidéo qu'un candidat t'envoie en cours de manche.</p>
+
+      <input type="hidden" id="dep-id" value="">
+      <div class="form-group">
+        <label class="form-label">Nom et prénom *</label>
+        <input type="text" class="form-input" id="dep-nom">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ville *</label>
+        <input type="text" class="form-input" id="dep-ville">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Plateforme *</label>
+        <select class="form-select form-input" id="dep-plateforme">
+          <option value="Facebook">Facebook</option>
+          <option value="Instagram">Instagram</option>
+          <option value="WhatsApp">WhatsApp</option>
+          <option value="YouTube">YouTube</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label class="form-label">Lien vidéo 1 *</label>
+        <input type="url" class="form-input" id="dep-lien-1" placeholder="https://...">
+      </div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label class="form-label" style="font-weight:400;color:var(--text3);">Lien vidéo 2 (optionnel)</label>
+        <input type="url" class="form-input" id="dep-lien-2" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="font-weight:400;color:var(--text3);">Lien vidéo 3 (optionnel)</label>
+        <input type="url" class="form-input" id="dep-lien-3" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">WhatsApp *</label>
+        <input type="tel" class="form-input" id="dep-whatsapp">
+      </div>
+
+      <button class="btn-primary" style="width:100%;justify-content:center;" id="dep-submit-btn" onclick="saveDefiParticipantEditHandler()">
+        Enregistrer les modifications
+      </button>
+      <p id="dep-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
     </div>
   </div>
 </div>
@@ -2182,7 +2250,7 @@ footer {
           <div class="rule-n">01</div>
           <div class="rule-t">Publie ta vidéo #Défi-V224</div>
         </div>
-        <div class="rule-d">Sur Facebook, Instagram ou WhatsApp — montre ta consommation locale.</div>
+        <div class="rule-d">Sur Facebook, Instagram, WhatsApp ou YouTube — montre ta consommation locale. Idéalement plusieurs vidéos tout au long des 30 jours !</div>
       </div>
       <div class="defi-rule">
         <div class="defi-rule-header">
@@ -2880,6 +2948,7 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   closeDefiInscriptionModal();
   closeDefiVoteModal();
+  closeDefiEditParticipantModal();
 });
 
 
@@ -3643,6 +3712,14 @@ function getPrixImages(p) {
   return [];
 }
 
+// Une candidature peut avoir 1 à 3 liens vidéo. Compatible avec les
+// inscriptions créées avant l'ajout du multi-vidéos (un seul "lienVideo").
+function getParticipantVideos(p) {
+  if (Array.isArray(p.videos) && p.videos.length) return p.videos.filter(Boolean);
+  if (p.lienVideo) return [p.lienVideo];
+  return [];
+}
+
 // Normalise un numéro guinéen pour servir de clé anti-doublon : on ne garde
 // que les 9 derniers chiffres, quel que soit le format saisi (+224, 00224, espaces...)
 function normalizeDefiPhone(tel) {
@@ -3841,14 +3918,16 @@ function renderDefiClassement() {
   valides.forEach(p => p._voteCount = counts[p.id] || 0);
   valides.sort((a, b) => b._voteCount - a._voteCount);
 
-  el.innerHTML = valides.map((p, i) => `
+  el.innerHTML = valides.map((p, i) => {
+    const nbVideos = getParticipantVideos(p).length;
+    return `
     <div class="classement-row">
       <div class="classement-rang">${i + 1}</div>
-      <div class="classement-nom">${p.nom || ''} <span class="classement-ville">· ${p.ville || ''}</span></div>
+      <div class="classement-nom">${p.nom || ''} <span class="classement-ville">· ${p.ville || ''}</span>${nbVideos > 1 ? `<span class="classement-videos-badge">🎬 ${nbVideos} vidéos</span>` : ''}</div>
       <div class="classement-votes">${p._voteCount} vote${p._voteCount > 1 ? 's' : ''}</div>
       <button class="classement-vote-btn" onclick="openDefiVoteModal('${p.id}')">Voter</button>
     </div>
-  `).join('');
+  `; }).join('');
 
   if (select) {
     select.innerHTML = '<option value="">Choisis un participant...</option>' +
@@ -3878,21 +3957,25 @@ async function submitDefiInscription() {
   const nom = document.getElementById('di-nom').value.trim();
   const ville = document.getElementById('di-ville').value.trim();
   const plateforme = document.getElementById('di-plateforme').value;
-  const lienVideo = document.getElementById('di-lien').value.trim();
+  const lien1 = document.getElementById('di-lien-1').value.trim();
+  const lien2 = document.getElementById('di-lien-2').value.trim();
+  const lien3 = document.getElementById('di-lien-3').value.trim();
   const whatsapp = document.getElementById('di-whatsapp').value.trim();
   const btn = document.getElementById('di-submit-btn');
   const msg = document.getElementById('di-msg');
 
-  if (!nom || !ville || !lienVideo || !whatsapp) {
+  if (!nom || !ville || !lien1 || !whatsapp) {
     msg.style.display = 'block';
     msg.style.color = '#A32D2D';
     msg.textContent = 'Merci de remplir tous les champs obligatoires (*).';
     return;
   }
-  if (!/^https?:\/\//i.test(lienVideo)) {
+  const videos = [lien1, lien2, lien3].filter(Boolean);
+  const lienInvalide = videos.find(v => !/^https?:\/\//i.test(v));
+  if (lienInvalide) {
     msg.style.display = 'block';
     msg.style.color = '#A32D2D';
-    msg.textContent = 'Le lien de la vidéo doit commencer par http:// ou https://';
+    msg.textContent = 'Chaque lien vidéo doit commencer par http:// ou https://';
     return;
   }
 
@@ -3901,11 +3984,14 @@ async function submitDefiInscription() {
   msg.style.display = 'none';
 
   try {
-    await window.submitDefiParticipant({ nom, ville, plateforme, lienVideo, whatsapp }, defiMancheCache.id);
+    // "lienVideo" (singulier) reste envoyé pour compatibilité avec le code
+    // existant qui l'affiche encore isolément ; "videos" est la source
+    // complète utilisée par le classement et l'admin.
+    await window.submitDefiParticipant({ nom, ville, plateforme, lienVideo: videos[0], videos, whatsapp }, defiMancheCache.id);
     msg.style.display = 'block';
     msg.style.color = '#2E7D46';
     msg.textContent = '✓ Inscription envoyée ! Elle apparaîtra dans le classement après validation.';
-    ['di-nom','di-ville','di-lien','di-whatsapp'].forEach(id => document.getElementById(id).value = '');
+    ['di-nom','di-ville','di-lien-1','di-lien-2','di-lien-3','di-whatsapp'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('di-plateforme').value = 'Facebook';
     setTimeout(closeDefiInscriptionModal, 2200);
   } catch(err) {
@@ -7257,24 +7343,27 @@ async function loadDefiParticipantsAdmin() {
     };
     const badgeLabel = { en_attente: '⏳ En attente', valide: '✓ Validé', refuse: '✕ Refusé' };
 
-    el.innerHTML = tries.map(p => `
+    el.innerHTML = tries.map(p => {
+      const videos = getParticipantVideos(p);
+      return `
       <div id="defi-part-${p.id}" style="background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:10px;border:1px solid #eee;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
           <div style="min-width:0;">
             <div style="font-weight:700;font-size:14px;color:#111;">${p.nom || '(sans nom)'}</div>
             <div style="font-size:11px;color:#888;margin-top:2px;">${p.ville || ''} · ${p.plateforme || ''}</div>
             <div style="font-size:11px;color:#888;margin-top:2px;">📱 ${p.whatsapp || '—'}</div>
-            ${p.lienVideo ? `<a href="${p.lienVideo}" target="_blank" style="font-size:11px;color:#E8622A;text-decoration:none;">▶ Voir la vidéo ↗</a>` : ''}
+            ${videos.map((v, i) => `<a href="${v}" target="_blank" style="display:block;font-size:11px;color:#E8622A;text-decoration:none;margin-top:2px;">▶ Vidéo ${videos.length > 1 ? i + 1 : ''} ↗</a>`).join('')}
           </div>
           <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;${badgeStyle[p.statut] || ''}">${badgeLabel[p.statut] || p.statut}</span>
         </div>
         <div style="display:flex;gap:8px;margin-top:12px;">
           ${p.statut !== 'valide' ? `<button onclick="validerDefiParticipantHandler('${p.id}')" style="flex:1;padding:8px;background:#2E7D46;color:#fff;border:none;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;">✓ Valider</button>` : ''}
           ${p.statut !== 'refuse' ? `<button onclick="refuserDefiParticipantHandler('${p.id}')" style="flex:1;padding:8px;background:#fff;color:#A32D2D;border:1.5px solid #A32D2D;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;">✕ Refuser</button>` : ''}
+          <button onclick="editDefiParticipantHandler('${p.id}')" style="padding:8px 12px;background:#fff;color:#555;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;">✏️</button>
           <button onclick="deleteDefiParticipantHandler('${p.id}', '${(p.nom||'').replace(/'/g,"\\'")}')" style="padding:8px 12px;background:#fff;color:#888;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;">🗑️</button>
         </div>
       </div>
-    `).join('');
+    `; }).join('');
   } catch(err) {
     el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
   }
@@ -7316,6 +7405,78 @@ async function deleteDefiParticipantHandler(id, nom) {
     loadDefiParticipantsAdmin();
   } catch(err) {
     alert('Erreur lors de la suppression. Réessayez.');
+  }
+}
+
+function editDefiParticipantHandler(id) {
+  const p = defiParticipantsCache.find(pp => pp.id === id);
+  if (!p) return;
+  const videos = getParticipantVideos(p);
+  document.getElementById('dep-id').value = id;
+  document.getElementById('dep-nom').value = p.nom || '';
+  document.getElementById('dep-ville').value = p.ville || '';
+  document.getElementById('dep-plateforme').value = p.plateforme || 'Facebook';
+  document.getElementById('dep-lien-1').value = videos[0] || '';
+  document.getElementById('dep-lien-2').value = videos[1] || '';
+  document.getElementById('dep-lien-3').value = videos[2] || '';
+  document.getElementById('dep-whatsapp').value = p.whatsapp || '';
+  document.getElementById('dep-msg').style.display = 'none';
+  document.getElementById('dep-submit-btn').disabled = false;
+  document.getElementById('dep-submit-btn').textContent = 'Enregistrer les modifications';
+  document.getElementById('defiEditParticipantModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDefiEditParticipantModal() {
+  const modal = document.getElementById('defiEditParticipantModal');
+  if (modal) modal.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+async function saveDefiParticipantEditHandler() {
+  const id = document.getElementById('dep-id').value;
+  const nom = document.getElementById('dep-nom').value.trim();
+  const ville = document.getElementById('dep-ville').value.trim();
+  const plateforme = document.getElementById('dep-plateforme').value;
+  const lien1 = document.getElementById('dep-lien-1').value.trim();
+  const lien2 = document.getElementById('dep-lien-2').value.trim();
+  const lien3 = document.getElementById('dep-lien-3').value.trim();
+  const whatsapp = document.getElementById('dep-whatsapp').value.trim();
+  const btn = document.getElementById('dep-submit-btn');
+  const msg = document.getElementById('dep-msg');
+
+  if (!nom || !ville || !lien1 || !whatsapp) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = 'Merci de remplir tous les champs obligatoires (*).';
+    return;
+  }
+  const videos = [lien1, lien2, lien3].filter(Boolean);
+  const lienInvalide = videos.find(v => !/^https?:\/\//i.test(v));
+  if (lienInvalide) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = 'Chaque lien vidéo doit commencer par http:// ou https://';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Enregistrement...';
+  try {
+    const data = { nom, ville, plateforme, lienVideo: videos[0], videos, whatsapp };
+    await window.updateDefiParticipant(id, data);
+    const idx = defiParticipantsCache.findIndex(p => p.id === id);
+    if (idx !== -1) defiParticipantsCache[idx] = { ...defiParticipantsCache[idx], ...data };
+    logStaffAction('modification', 'défi-participant', nom);
+    closeDefiEditParticipantModal();
+    loadDefiParticipantsAdmin();
+  } catch(err) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = "❌ Erreur lors de l'enregistrement.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enregistrer les modifications';
   }
 }
 
