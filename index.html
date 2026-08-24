@@ -571,9 +571,20 @@ section { padding: 96px 6vw; width: 100%; }
   background: rgba(0,0,0,.08); border-radius: 8px; padding: 20px;
   display: flex; flex-direction: column; gap: 10px;
 }
-.prix-card img {
-  width: 100%; height: 140px; object-fit: contain; border-radius: 6px;
-  background: #fff; border: 1px solid rgba(0,0,0,.08);
+.prix-img-wrap {
+  position: relative; width: 100%; height: 140px;
+  border-radius: 6px; overflow: hidden; border: 1px solid rgba(0,0,0,.08);
+  background: #fff;
+}
+.prix-img-bg {
+  position: absolute; inset: -12px;
+  background-size: cover; background-position: center;
+  filter: blur(18px) brightness(.82) saturate(1.15);
+  transform: scale(1.15);
+}
+.prix-img-fg {
+  position: relative; z-index: 1; display: block;
+  width: 100%; height: 100%; object-fit: contain;
 }
 .prix-rang {
   font-family: 'Bebas Neue'; font-size: 20px; color: var(--orange);
@@ -3660,7 +3671,11 @@ function renderDefiPrix(prix) {
   const medailles = { 1: '🥇', 2: '🥈', 3: '🥉' };
   el.innerHTML = prix.map(p => `
     <div class="prix-card">
-      ${p.image ? `<img src="${p.image}" alt="">` : ''}
+      ${p.image ? `
+      <div class="prix-img-wrap">
+        <div class="prix-img-bg" style="background-image:url('${p.image}')"></div>
+        <img src="${p.image}" alt="" class="prix-img-fg">
+      </div>` : ''}
       <div class="prix-rang">${medailles[p.rang] || '🎁'} ${p.rang ? p.rang + (p.rang === 1 ? 'er' : 'e') + ' prix' : 'Prix'}</div>
       <div class="prix-titre">${p.titre || ''}</div>
       ${p.description ? `<div class="prix-desc">${p.description}</div>` : ''}
