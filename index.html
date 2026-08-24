@@ -563,6 +563,15 @@ section { padding: 96px 6vw; width: 100%; }
   display: inline-flex; align-items: center; gap: 8px;
 }
 .btn-dark:hover { background: #222; }
+.btn-orange {
+  background: var(--orange); color: #fff;
+  padding: 14px 32px; border-radius: 4px;
+  font-family: 'Syne'; font-size: 13px; font-weight: 700;
+  letter-spacing: .08em; cursor: pointer; border: none;
+  transition: background .2s;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-orange:hover { background: var(--orange-light); }
 .btn-outline-dark {
   background: transparent; color: #111;
   padding: 13px 30px; border-radius: 4px;
@@ -2182,7 +2191,7 @@ footer {
       <button class="btn-outline-dark" id="defi-insc-btn" onclick="openDefiInscriptionModal()">
         Inscrire ma vidéo
       </button>
-      <button class="btn-outline-dark" id="defi-vote-btn" onclick="openDefiVoteModal()">
+      <button class="btn-orange" id="defi-vote-btn" onclick="openDefiVoteModal()">
         Voter pour un participant
       </button>
     </div>
