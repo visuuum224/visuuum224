@@ -1162,6 +1162,7 @@ footer {
           <option value="Facebook">Facebook</option>
           <option value="Instagram">Instagram</option>
           <option value="WhatsApp">WhatsApp</option>
+          <option value="YouTube">YouTube</option>
         </select>
       </div>
       <div class="form-group">
@@ -1219,7 +1220,7 @@ footer {
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getFirestore, collection, getDocs, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where }
+  import { getFirestore, collection, getDocs, addDoc, serverTimestamp, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, writeBatch }
     from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
   import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
            createUserWithEmailAndPassword, sendPasswordResetEmail, signOut as secSignOut,
@@ -1503,11 +1504,43 @@ footer {
   };
 
   // ── #DÉFI-V224 (concours vidéo à vote public) ──────────────────────────────
-  const DEFI_MANCHE_ID = "principale"; // une seule manche active à la fois pour l'instant
+  // Système multi-manches : chaque manche est un document distinct dans
+  // "defi_manches" (ID auto-généré). Un petit document pointeur
+  // "defi_config/pointeur" indique quelle manche est actuellement "active" —
+  // c'est elle que le site public affiche, et c'est sur elle que se rattachent
+  // les nouveaux participants/votes/cadeaux. Changer de manche active ne
+  // touche donc qu'un seul petit document, jamais les manches elles-mêmes.
 
-  window.getDefiManche = async function() {
+  window.getDefiActiveMancheId = async function() {
     try {
-      const snap = await getDoc(doc(db, "defi_manche", DEFI_MANCHE_ID));
+      const snap = await getDoc(doc(db, "defi_config", "pointeur"));
+      return snap.exists() ? (snap.data().activeMancheId || null) : null;
+    } catch(err) {
+      console.warn("Résolution manche active #Défi-V224 échouée:", err);
+      return null;
+    }
+  };
+
+  window.setDefiActiveManche = async function(mancheId) {
+    return await setDoc(doc(db, "defi_config", "pointeur"), { activeMancheId: mancheId }, { merge: true });
+  };
+
+  window.getDefiManches = async function() {
+    const snap = await getDocs(collection(db, "defi_manches"));
+    const result = [];
+    snap.forEach(d => result.push({ id: d.id, ...d.data() }));
+    result.sort((a, b) => {
+      const ta = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
+      const tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
+      return tb - ta; // plus récente d'abord
+    });
+    return result;
+  };
+
+  window.getDefiManche = async function(mancheId) {
+    if (!mancheId) return null;
+    try {
+      const snap = await getDoc(doc(db, "defi_manches", mancheId));
       return snap.exists() ? { id: snap.id, ...snap.data() } : null;
     } catch(err) {
       console.warn("Chargement manche #Défi-V224 échoué:", err);
@@ -1515,22 +1548,86 @@ footer {
     }
   };
 
-  window.saveDefiManche = async function(data) {
-    return await setDoc(doc(db, "defi_manche", DEFI_MANCHE_ID), data, { merge: true });
+  // Migration unique de l'ancien système ("defi_manche/principale", une seule
+  // manche figée) vers le nouveau système multi-manches. Ne s'exécute que si
+  // aucune manche n'existe encore dans "defi_manches" ET qu'un ancien document
+  // "principale" est trouvé. La manche migrée est automatiquement activée, et
+  // tous les participants/votes/cadeaux qui pointaient vers l'ancien ID
+  // "principale" sont réassignés vers le nouvel ID généré.
+  // Limite connue : les votes déjà enregistrés avant la migration gardent leur
+  // ancien ID de document ("principale_téléphone") — un même numéro pourrait
+  // donc théoriquement revoter après la migration, puisque le nouvel ID de
+  // vote suivra désormais le format "{nouvelId}_téléphone". Sans impact pour
+  // une manche qui n'a pas encore reçu de votes.
+  window.migrateLegacyDefiManche = async function() {
+    try {
+      const already = await getDocs(collection(db, "defi_manches"));
+      if (!already.empty) return null; // déjà migré, ou nouveau système déjà utilisé
+
+      const legacySnap = await getDoc(doc(db, "defi_manche", "principale"));
+      if (!legacySnap.exists()) return null; // pas d'ancienne donnée à migrer
+
+      const legacy = legacySnap.data();
+      const newRef = await addDoc(collection(db, "defi_manches"), {
+        titre: legacy.titre || '#Défi-V224',
+        dateDebut: legacy.dateDebut || '',
+        dateFin: legacy.dateFin || '',
+        statutVote: legacy.statutVote || 'inscriptions',
+        lienFacebook: legacy.lienFacebook || '',
+        createdAt: serverTimestamp()
+      });
+      await setDoc(doc(db, "defi_config", "pointeur"), { activeMancheId: newRef.id }, { merge: true });
+
+      let migratedCount = 0;
+      for (const col of ["defi_participants", "defi_votes", "defi_prix"]) {
+        const snap = await getDocs(query(collection(db, col), where("mancheId", "==", "principale")));
+        const refs = [];
+        snap.forEach(d => refs.push(d.ref));
+        for (let i = 0; i < refs.length; i += 400) {
+          const batch = writeBatch(db);
+          refs.slice(i, i + 400).forEach(r => batch.update(r, { mancheId: newRef.id }));
+          await batch.commit();
+          migratedCount += Math.min(400, refs.length - i);
+        }
+      }
+      return { newMancheId: newRef.id, titre: legacy.titre, migratedCount };
+    } catch(err) {
+      console.warn('Migration ancienne manche #Défi-V224 échouée:', err);
+      return null;
+    }
+  };
+
+  // Crée une nouvelle manche. Si c'est la toute première (aucune manche active
+  // définie), elle devient automatiquement la manche active — sinon l'équipe
+  // devrait sinon cliquer "Activer" pour qu'elle apparaisse sur le site public.
+  window.createDefiManche = async function(data) {
+    const ref = await addDoc(collection(db, "defi_manches"), { ...data, createdAt: serverTimestamp() });
+    const activeId = await window.getDefiActiveMancheId();
+    if (!activeId) await window.setDefiActiveManche(ref.id);
+    return ref;
+  };
+
+  window.updateDefiManche = async function(id, data) {
+    return await updateDoc(doc(db, "defi_manches", id), data);
+  };
+
+  window.deleteDefiManche = async function(id) {
+    return await deleteDoc(doc(db, "defi_manches", id));
   };
 
   // Inscription d'un participant (formulaire public) — en attente de modération
-  window.submitDefiParticipant = async function(data) {
+  window.submitDefiParticipant = async function(data, mancheId) {
     return await addDoc(collection(db, "defi_participants"), {
       ...data,
-      mancheId: DEFI_MANCHE_ID,
+      mancheId: mancheId,
       statut: "en_attente",
       dateSoumission: serverTimestamp()
     });
   };
 
-  window.getDefiParticipants = async function() {
-    const snap = await getDocs(query(collection(db, "defi_participants"), where("mancheId", "==", DEFI_MANCHE_ID)));
+  window.getDefiParticipants = async function(mancheId) {
+    if (!mancheId) return [];
+    const snap = await getDocs(query(collection(db, "defi_participants"), where("mancheId", "==", mancheId)));
     const result = [];
     snap.forEach(d => result.push({ id: d.id, ...d.data() }));
     return result;
@@ -1549,30 +1646,35 @@ footer {
   // traite une seconde écriture sur le même ID comme une "update", que la règle
   // de sécurité (allow create seulement) rejette automatiquement. Aucun code de
   // vérification supplémentaire n'est donc nécessaire pour bloquer les doublons.
-  window.submitDefiVote = async function(telephoneNormalise, data) {
-    const voteId = DEFI_MANCHE_ID + "_" + telephoneNormalise;
+  // Comme l'ID de manche change à chaque nouvelle manche, un même numéro peut
+  // à nouveau voter dès qu'une nouvelle manche démarre — c'est le comportement
+  // voulu (le compteur de votes repart à zéro à chaque édition).
+  window.submitDefiVote = async function(telephoneNormalise, data, mancheId) {
+    const voteId = mancheId + "_" + telephoneNormalise;
     await setDoc(doc(db, "defi_votes", voteId), {
       ...data,
-      mancheId: DEFI_MANCHE_ID,
+      mancheId: mancheId,
       dateVote: serverTimestamp()
     });
     return voteId;
   };
 
-  window.getDefiVotes = async function() {
-    const snap = await getDocs(query(collection(db, "defi_votes"), where("mancheId", "==", DEFI_MANCHE_ID)));
+  window.getDefiVotes = async function(mancheId) {
+    if (!mancheId) return [];
+    const snap = await getDocs(query(collection(db, "defi_votes"), where("mancheId", "==", mancheId)));
     const result = [];
     snap.forEach(d => result.push({ id: d.id, ...d.data() }));
     return result;
   };
 
-  // Cadeaux / prix à gagner
-  window.addDefiPrixToFirestore = async function(data) {
-    return await addDoc(collection(db, "defi_prix"), { ...data, mancheId: DEFI_MANCHE_ID });
+  // Cadeaux / prix à gagner — désormais explicitement rattachés à une manche
+  window.addDefiPrixToFirestore = async function(data, mancheId) {
+    return await addDoc(collection(db, "defi_prix"), { ...data, mancheId: mancheId });
   };
 
-  window.getDefiPrix = async function() {
-    const snap = await getDocs(query(collection(db, "defi_prix"), where("mancheId", "==", DEFI_MANCHE_ID)));
+  window.getDefiPrix = async function(mancheId) {
+    if (!mancheId) return [];
+    const snap = await getDocs(query(collection(db, "defi_prix"), where("mancheId", "==", mancheId)));
     const result = [];
     snap.forEach(d => result.push({ id: d.id, ...d.data() }));
     return result.sort((a, b) => (a.rang || 99) - (b.rang || 99));
@@ -3484,21 +3586,24 @@ function normalizeDefiPhone(tel) {
 
 async function initDefiPublic() {
   try {
-    if (window.getDefiManche) defiMancheCache = await window.getDefiManche();
+    const activeId = window.getDefiActiveMancheId ? await window.getDefiActiveMancheId() : null;
+    defiMancheCache = activeId && window.getDefiManche ? await window.getDefiManche(activeId) : null;
   } catch(e) { console.warn('Chargement manche défi échoué', e); }
   updateDefiFacebookButton();
   updateDefiButtonsState();
 
+  if (!defiMancheCache) return; // aucune manche active : les placeholders HTML restent affichés
+
   try {
     if (window.getDefiPrix) {
-      const prix = await window.getDefiPrix();
+      const prix = await window.getDefiPrix(defiMancheCache.id);
       if (prix.length) renderDefiPrix(prix);
     }
   } catch(e) { console.warn('Chargement cadeaux défi échoué', e); }
 
   try {
-    if (window.getDefiParticipants) defiParticipantsCache = await window.getDefiParticipants();
-    if (window.getDefiVotes) defiVotesCache = await window.getDefiVotes();
+    if (window.getDefiParticipants) defiParticipantsCache = await window.getDefiParticipants(defiMancheCache.id);
+    if (window.getDefiVotes) defiVotesCache = await window.getDefiVotes(defiMancheCache.id);
     renderDefiClassement();
   } catch(e) { console.warn('Chargement classement défi échoué', e); }
 }
@@ -3514,8 +3619,9 @@ function updateDefiFacebookButton() {
 // Reflète le statut de la manche (défini dans l'admin) sur les boutons publics :
 // pendant "inscriptions", le vote n'est pas encore ouvert ; une fois "cloturee",
 // plus aucune nouvelle inscription ni aucun nouveau vote n'est accepté.
+// Si aucune manche n'est active, tout est désactivé.
 function updateDefiButtonsState() {
-  const statut = (defiMancheCache && defiMancheCache.statutVote) || 'inscriptions';
+  const statut = defiMancheCache ? (defiMancheCache.statutVote || 'inscriptions') : 'aucune';
   const inscBtn = document.getElementById('defi-insc-btn');
   const voteBtn = document.getElementById('defi-vote-btn');
   if (!inscBtn || !voteBtn) return;
@@ -3527,7 +3633,10 @@ function updateDefiButtonsState() {
     btn.title = label || '';
   };
 
-  if (statut === 'cloturee') {
+  if (statut === 'aucune') {
+    setBtnState(inscBtn, true, 'Aucune manche du #Défi-V224 en cours pour le moment.');
+    setBtnState(voteBtn, true, 'Aucune manche du #Défi-V224 en cours pour le moment.');
+  } else if (statut === 'cloturee') {
     setBtnState(inscBtn, true, 'Cette manche du #Défi-V224 est terminée.');
     setBtnState(voteBtn, true, 'Cette manche du #Défi-V224 est terminée.');
   } else if (statut === 'vote') {
@@ -3594,7 +3703,11 @@ function renderDefiClassement() {
 }
 
 function openDefiInscriptionModal() {
-  const statut = (defiMancheCache && defiMancheCache.statutVote) || 'inscriptions';
+  if (!defiMancheCache) {
+    alert('Aucune manche du #Défi-V224 en cours pour le moment.');
+    return;
+  }
+  const statut = defiMancheCache.statutVote || 'inscriptions';
   if (statut === 'cloturee') {
     alert('Cette manche du #Défi-V224 est terminée. Merci de ta participation !');
     return;
@@ -3634,7 +3747,7 @@ async function submitDefiInscription() {
   msg.style.display = 'none';
 
   try {
-    await window.submitDefiParticipant({ nom, ville, plateforme, lienVideo, whatsapp });
+    await window.submitDefiParticipant({ nom, ville, plateforme, lienVideo, whatsapp }, defiMancheCache.id);
     msg.style.display = 'block';
     msg.style.color = '#2E7D46';
     msg.textContent = '✓ Inscription envoyée ! Elle apparaîtra dans le classement après validation.';
@@ -3652,7 +3765,11 @@ async function submitDefiInscription() {
 }
 
 function openDefiVoteModal(preselectParticipantId) {
-  const statut = (defiMancheCache && defiMancheCache.statutVote) || 'inscriptions';
+  if (!defiMancheCache) {
+    alert('Aucune manche du #Défi-V224 en cours pour le moment.');
+    return;
+  }
+  const statut = defiMancheCache.statutVote || 'inscriptions';
   if (statut === 'cloturee') {
     alert('Cette manche du #Défi-V224 est terminée. Merci pour tes votes !');
     return;
@@ -3699,7 +3816,7 @@ async function submitDefiVoteHandler() {
   msg.style.display = 'none';
 
   try {
-    await window.submitDefiVote(normalise, { participantId, prenom, nom, telephone });
+    await window.submitDefiVote(normalise, { participantId, prenom, nom, telephone }, defiMancheCache.id);
     msg.style.display = 'block';
     msg.style.color = '#2E7D46';
     const participant = defiParticipantsCache.find(p => p.id === participantId);
@@ -3708,7 +3825,7 @@ async function submitDefiVoteHandler() {
     document.getElementById('dv-nom').value = '';
     document.getElementById('dv-telephone').value = '';
     // Rafraîchit le classement en direct avec ce nouveau vote
-    defiVotesCache.push({ participantId, mancheId: 'principale' });
+    defiVotesCache.push({ participantId, mancheId: defiMancheCache.id });
     renderDefiClassement();
     setTimeout(closeDefiVoteModal, 2500);
   } catch(err) {
@@ -6758,19 +6875,87 @@ function resetHistoriqueFilter() {
 // ── #DÉFI-V224 : PARTIE ADMIN ────────────────────────────────────────────────
 
 // -- Sous-onglet MANCHE --
+let defiManchesCache = [];
+let defiActiveMancheId = null;
+
 async function loadDefiMancheAdmin() {
-  const msg = document.getElementById('dm-msg');
-  if (msg) msg.style.display = 'none';
+  resetDefiMancheForm();
+
+  // Migration unique de l'ancienne manche figée, si elle existe encore
   try {
-    const manche = window.getDefiManche ? await window.getDefiManche() : null;
-    defiMancheCache = manche;
-    document.getElementById('dm-titre').value = (manche && manche.titre) || '#Défi-V224';
-    document.getElementById('dm-date-debut').value = (manche && manche.dateDebut) || '';
-    document.getElementById('dm-date-fin').value = (manche && manche.dateFin) || '';
-    document.getElementById('dm-statut').value = (manche && manche.statutVote) || 'inscriptions';
-    document.getElementById('dm-lien-fb').value = (manche && manche.lienFacebook) || '';
+    const migration = window.migrateLegacyDefiManche ? await window.migrateLegacyDefiManche() : null;
+    if (migration) {
+      const msg = document.getElementById('dm-msg');
+      msg.style.display = 'block';
+      msg.style.color = '#2E7D46';
+      msg.textContent = `✓ Ton ancienne manche "${migration.titre || '#Défi-V224'}" a été migrée automatiquement vers le nouveau système multi-manches (${migration.migratedCount} élément(s) réassigné(s)).`;
+      logStaffAction('migration', 'défi-manche', migration.titre || '#Défi-V224');
+    }
+  } catch(e) { console.warn('Migration défi échouée', e); }
+
+  await refreshDefiManchesList();
+}
+
+function resetDefiMancheForm() {
+  document.getElementById('dm-editing-id').value = '';
+  document.getElementById('dm-titre').value = '';
+  document.getElementById('dm-date-debut').value = '';
+  document.getElementById('dm-date-fin').value = '';
+  document.getElementById('dm-statut').value = 'inscriptions';
+  document.getElementById('dm-lien-fb').value = '';
+  document.getElementById('dm-save-btn').textContent = '✦ Créer la manche';
+  document.getElementById('dm-save-btn').disabled = false;
+  document.getElementById('dm-msg').style.display = 'none';
+}
+
+// Vide uniquement les champs du formulaire, sans toucher au message de statut
+// affiché juste après un enregistrement réussi (voir saveDefiMancheHandler).
+function clearDefiMancheFormFields() {
+  document.getElementById('dm-editing-id').value = '';
+  document.getElementById('dm-titre').value = '';
+  document.getElementById('dm-date-debut').value = '';
+  document.getElementById('dm-date-fin').value = '';
+  document.getElementById('dm-statut').value = 'inscriptions';
+  document.getElementById('dm-lien-fb').value = '';
+  document.getElementById('dm-save-btn').textContent = '✦ Créer la manche';
+  document.getElementById('dm-save-btn').disabled = false;
+}
+
+async function refreshDefiManchesList() {
+  const el = document.getElementById('defiManchesAdminList');
+  if (!el) return;
+  el.innerHTML = '<p style="color:#888;">Chargement...</p>';
+  try {
+    defiManchesCache = window.getDefiManches ? await window.getDefiManches() : [];
+    defiActiveMancheId = window.getDefiActiveMancheId ? await window.getDefiActiveMancheId() : null;
+
+    if (!defiManchesCache.length) {
+      el.innerHTML = '<p style="color:#aaa;">Aucune manche créée pour le moment.</p>';
+      return;
+    }
+
+    const statutLabel = { inscriptions: 'Inscriptions ouvertes', vote: 'Vote ouvert', cloturee: 'Clôturée' };
+    el.innerHTML = defiManchesCache.map(m => {
+      const isActive = m.id === defiActiveMancheId;
+      return `
+      <div style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:8px;border:1px solid ${isActive ? '#E8622A' : '#eee'};">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+          <div style="min-width:0;">
+            <div style="font-weight:700;font-size:13px;color:#111;">
+              ${m.titre || '(sans titre)'} ${isActive ? '<span style="color:#E8622A;font-size:10px;font-weight:700;margin-left:6px;">● ACTIVE</span>' : ''}
+            </div>
+            <div style="font-size:11px;color:#888;margin-top:2px;">${m.dateDebut || '?'} → ${m.dateFin || '?'} · ${statutLabel[m.statutVote] || m.statutVote}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+          ${!isActive ? `<button onclick="activerDefiMancheHandler('${m.id}')" style="padding:7px 12px;background:#111;color:#fff;border:none;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;">● Activer</button>` : ''}
+          <button onclick="editDefiMancheHandler('${m.id}')" style="padding:7px 12px;background:#fff;color:#555;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;">✏️ Modifier</button>
+          <button onclick="deleteDefiMancheHandler('${m.id}', '${(m.titre||'').replace(/'/g,"\\'")}')" style="padding:7px 12px;background:#fff;color:#A32D2D;border:1.5px solid #A32D2D;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;cursor:pointer;">🗑️ Supprimer</button>
+        </div>
+      </div>
+    `; }).join('');
   } catch(err) {
-    console.warn('Chargement manche admin échoué:', err);
+    el.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
   }
 }
 
@@ -6780,37 +6965,117 @@ async function saveDefiMancheHandler() {
   const dateFin = document.getElementById('dm-date-fin').value;
   const statutVote = document.getElementById('dm-statut').value;
   const lienFacebook = document.getElementById('dm-lien-fb').value.trim();
+  const editingId = document.getElementById('dm-editing-id').value;
   const btn = document.getElementById('dm-save-btn');
   const msg = document.getElementById('dm-msg');
 
+  if (!titre) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = 'Le titre de la manche est obligatoire.';
+    return;
+  }
+
   btn.disabled = true;
   btn.textContent = '⏳ Enregistrement...';
+  const data = { titre, dateDebut, dateFin, statutVote, lienFacebook };
+
   try {
-    await window.saveDefiManche({ titre, dateDebut, dateFin, statutVote, lienFacebook });
-    defiMancheCache = { ...(defiMancheCache || {}), titre, dateDebut, dateFin, statutVote, lienFacebook };
-    updateDefiFacebookButton();
+    if (editingId) {
+      await window.updateDefiManche(editingId, data);
+      msg.style.color = '#2E7D46';
+      msg.textContent = '✓ Manche mise à jour !';
+      logStaffAction('modification', 'défi-manche', titre);
+      if (editingId === defiActiveMancheId) {
+        defiMancheCache = { id: editingId, ...data };
+        updateDefiFacebookButton();
+      }
+    } else {
+      const ref = await window.createDefiManche(data);
+      msg.style.color = '#2E7D46';
+      msg.textContent = defiManchesCache.length === 0
+        ? '✓ Manche créée et activée automatiquement (première manche) !'
+        : '✓ Manche créée ! Clique "Activer" dans la liste ci-dessous pour la publier sur le site.';
+      logStaffAction('création', 'défi-manche', titre);
+    }
     msg.style.display = 'block';
-    msg.style.color = '#2E7D46';
-    msg.textContent = '✓ Manche mise à jour !';
-    logStaffAction('modification', 'défi-manche', titre || 'Manche #Défi-V224');
+    clearDefiMancheFormFields();
+    await refreshDefiManchesList();
   } catch(err) {
     msg.style.display = 'block';
     msg.style.color = '#A32D2D';
     msg.textContent = "❌ Erreur lors de l'enregistrement.";
-  } finally {
     btn.disabled = false;
-    btn.textContent = '✦ Enregistrer';
+    btn.textContent = editingId ? '✦ Enregistrer les modifications' : '✦ Créer la manche';
+  }
+}
+
+function editDefiMancheHandler(id) {
+  const m = defiManchesCache.find(mm => mm.id === id);
+  if (!m) return;
+  document.getElementById('dm-editing-id').value = id;
+  document.getElementById('dm-titre').value = m.titre || '';
+  document.getElementById('dm-date-debut').value = m.dateDebut || '';
+  document.getElementById('dm-date-fin').value = m.dateFin || '';
+  document.getElementById('dm-statut').value = m.statutVote || 'inscriptions';
+  document.getElementById('dm-lien-fb').value = m.lienFacebook || '';
+  document.getElementById('dm-save-btn').textContent = '✦ Enregistrer les modifications';
+  const dashEl = document.getElementById('adminDash');
+  if (dashEl) dashEl.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function activerDefiMancheHandler(id) {
+  const m = defiManchesCache.find(mm => mm.id === id);
+  try {
+    await window.setDefiActiveManche(id);
+    logStaffAction('activation', 'défi-manche', (m && m.titre) || id);
+    await refreshDefiManchesList();
+  } catch(err) {
+    alert("Erreur lors de l'activation. Réessaie.");
+  }
+}
+
+async function deleteDefiMancheHandler(id, titre) {
+  if (!confirm('Supprimer définitivement la manche "' + titre + '" ?\n\nATTENTION : les participants, votes et cadeaux déjà liés à cette manche ne sont PAS supprimés automatiquement — ils resteront en base mais ne seront plus accessibles depuis l\'interface.')) return;
+  const motif = demanderMotif('Motif de la suppression de la manche "' + titre + '" (obligatoire) :');
+  if (motif === null) return;
+  try {
+    await window.deleteDefiManche(id);
+    if (id === defiActiveMancheId) {
+      defiMancheCache = null;
+      updateDefiFacebookButton();
+    }
+    logStaffAction('suppression', 'défi-manche', titre, motif);
+    await refreshDefiManchesList();
+  } catch(err) {
+    alert('Erreur lors de la suppression. Réessaie.');
   }
 }
 
 // -- Sous-onglet PARTICIPANTS --
+// Résout la manche active pour les onglets Participants/Votes/Cadeaux de l'admin
+// (indépendamment de l'onglet Manche, au cas où l'admin ouvre directement un
+// autre sous-onglet sans être passé par "Manche" auparavant).
+async function resolveDefiActiveMancheAdmin() {
+  if (!defiActiveMancheId) {
+    defiActiveMancheId = window.getDefiActiveMancheId ? await window.getDefiActiveMancheId() : null;
+  }
+  return defiActiveMancheId;
+}
+
 async function loadDefiParticipantsAdmin() {
   const el = document.getElementById('defiParticipantsAdminList');
   const badge = document.getElementById('defi-participants-badge');
   if (!el) return;
   el.innerHTML = '<p style="color:#888;">Chargement...</p>';
   try {
-    defiParticipantsCache = window.getDefiParticipants ? await window.getDefiParticipants() : [];
+    const activeId = await resolveDefiActiveMancheAdmin();
+    if (!activeId) {
+      el.innerHTML = '<p style="color:#aaa;">Aucune manche active — crée ou active une manche dans l\'onglet "⚙️ Manche" d\'abord.</p>';
+      if (badge) badge.style.display = 'none';
+      return;
+    }
+    defiParticipantsCache = window.getDefiParticipants ? await window.getDefiParticipants(activeId) : [];
     const enAttente = defiParticipantsCache.filter(p => p.statut === 'en_attente');
     if (badge) {
       badge.textContent = enAttente.length;
@@ -6898,8 +7163,16 @@ async function loadDefiVotesAdmin() {
   if (!el) return;
   el.innerHTML = '<p style="color:#888;">Chargement...</p>';
   try {
-    if (!defiParticipantsCache.length && window.getDefiParticipants) defiParticipantsCache = await window.getDefiParticipants();
-    defiVotesCache = window.getDefiVotes ? await window.getDefiVotes() : [];
+    const activeId = await resolveDefiActiveMancheAdmin();
+    if (!activeId) {
+      el.innerHTML = '<p style="color:#aaa;">Aucune manche active — crée ou active une manche dans l\'onglet "⚙️ Manche" d\'abord.</p>';
+      document.getElementById('dv-stat-total').textContent = '0';
+      document.getElementById('dv-stat-participants').textContent = '0';
+      document.getElementById('dv-stat-leader').textContent = '—';
+      return;
+    }
+    if (!defiParticipantsCache.length && window.getDefiParticipants) defiParticipantsCache = await window.getDefiParticipants(activeId);
+    defiVotesCache = window.getDefiVotes ? await window.getDefiVotes(activeId) : [];
 
     const valides = defiParticipantsCache.filter(p => p.statut === 'valide');
     const counts = {};
@@ -6969,11 +7242,46 @@ function resetDefiPrixForm() {
   btn.textContent = '✦ Ajouter le cadeau';
   btn.disabled = false;
   document.getElementById('dp-msg').style.display = 'none';
+  // Ne touche volontairement pas à #dp-manche : après l'ajout d'un cadeau,
+  // on reste probablement en train d'en ajouter d'autres pour la même manche.
 }
 
 let defiPrixCache = [];
 
+// Remplit le menu déroulant "Manche" du formulaire Cadeaux. Conserve la
+// sélection en cours si elle est encore valide, sinon retombe sur la manche
+// active, sinon la première manche de la liste.
+async function populateDefiPrixMancheSelect() {
+  const sel = document.getElementById('dp-manche');
+  if (!sel) return;
+  if (!defiManchesCache.length && window.getDefiManches) defiManchesCache = await window.getDefiManches();
+  if (!defiActiveMancheId) defiActiveMancheId = window.getDefiActiveMancheId ? await window.getDefiActiveMancheId() : null;
+
+  const previousValue = sel.value;
+
+  if (!defiManchesCache.length) {
+    sel.innerHTML = '<option value="">Aucune manche créée</option>';
+    return;
+  }
+  sel.innerHTML = defiManchesCache.map(m =>
+    `<option value="${m.id}">${(m.titre || '(sans titre)')}${m.id === defiActiveMancheId ? ' — ● active' : ''}</option>`
+  ).join('');
+
+  if (previousValue && defiManchesCache.some(m => m.id === previousValue)) {
+    sel.value = previousValue;
+  } else if (defiActiveMancheId) {
+    sel.value = defiActiveMancheId;
+  }
+}
+
+// Appelé au changement de sélection du menu "Manche" du formulaire Cadeaux
+function onDefiPrixMancheChange() {
+  resetDefiPrixForm();
+  refreshDefiPrixListOnly();
+}
+
 async function saveDefiPrixHandler() {
+  const mancheId = document.getElementById('dp-manche').value;
   const rang = parseInt(document.getElementById('dp-rang').value, 10);
   const titre = document.getElementById('dp-titre').value.trim();
   const description = document.getElementById('dp-description').value.trim();
@@ -6982,6 +7290,12 @@ async function saveDefiPrixHandler() {
   const btn = document.getElementById('dp-save-btn');
   const msg = document.getElementById('dp-msg');
 
+  if (!mancheId) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = 'Crée d\'abord une manche dans l\'onglet "⚙️ Manche".';
+    return;
+  }
   if (!titre) {
     msg.style.display = 'block';
     msg.style.color = '#A32D2D';
@@ -7014,17 +7328,19 @@ async function saveDefiPrixHandler() {
       if (idx !== -1) defiPrixCache[idx] = { ...defiPrixCache[idx], ...data };
       logStaffAction('modification', 'défi-cadeau', titre);
     } else {
-      const ref = await window.addDefiPrixToFirestore(data);
+      const ref = await window.addDefiPrixToFirestore(data, mancheId);
       msg.style.color = '#2E7D46';
       msg.textContent = '✓ Cadeau ajouté !';
-      defiPrixCache.push({ id: ref.id, ...data });
+      defiPrixCache.push({ id: ref.id, mancheId, ...data });
       logStaffAction('création', 'défi-cadeau', titre);
     }
     msg.style.display = 'block';
     defiPrixCache.sort((a, b) => (a.rang || 99) - (b.rang || 99));
-    renderDefiPrix(defiPrixCache);
+    // Ne met à jour l'aperçu public que si on édite bien la manche active —
+    // sinon on afficherait par erreur les cadeaux d'une manche future/passée.
+    if (mancheId === defiActiveMancheId) renderDefiPrix(defiPrixCache);
     resetDefiPrixForm();
-    loadDefiPrixAdminList();
+    await refreshDefiPrixListOnly();
   } catch(err) {
     msg.style.display = 'block';
     msg.style.color = '#A32D2D';
@@ -7059,22 +7375,37 @@ async function deleteDefiPrixHandler(id, titre) {
   const motif = demanderMotif('Motif de la suppression du cadeau "' + titre + '" (obligatoire) :');
   if (motif === null) return;
   try {
+    const mancheId = document.getElementById('dp-manche').value;
     await window.deleteDefiPrixFirestore(id);
     defiPrixCache = defiPrixCache.filter(p => p.id !== id);
-    renderDefiPrix(defiPrixCache);
+    if (mancheId === defiActiveMancheId) renderDefiPrix(defiPrixCache);
     logStaffAction('suppression', 'défi-cadeau', titre, motif);
-    loadDefiPrixAdminList();
+    await refreshDefiPrixListOnly();
   } catch(err) {
     alert('Erreur lors de la suppression.');
   }
 }
 
 async function loadDefiPrixAdminList() {
+  await populateDefiPrixMancheSelect();
+  await refreshDefiPrixListOnly();
+}
+
+async function refreshDefiPrixListOnly() {
+  const sel = document.getElementById('dp-manche');
+  const mancheId = sel ? sel.value : null;
   const el = document.getElementById('defiPrixAdminList');
   if (!el) return;
+
+  if (!mancheId) {
+    el.innerHTML = '<p style="color:#aaa;">Crée une manche dans l\'onglet "⚙️ Manche" avant d\'ajouter des cadeaux.</p>';
+    defiPrixCache = [];
+    return;
+  }
+
   el.innerHTML = '<p style="color:#888;">Chargement...</p>';
   try {
-    defiPrixCache = window.getDefiPrix ? await window.getDefiPrix() : [];
+    defiPrixCache = window.getDefiPrix ? await window.getDefiPrix(mancheId) : [];
     if (!defiPrixCache.length) {
       el.innerHTML = '<p style="color:#aaa;">Aucun cadeau enregistré pour cette manche.</p>';
       return;
@@ -7980,8 +8311,10 @@ function trackRecherche(terme) {
 
     <!-- Tab DÉFI-V224 : MANCHE -->
     <div id="panelDefiManche" style="padding:28px; display:none;">
-      <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:6px;">Paramètres de la manche</div>
-      <div style="font-size:12px; color:#888; margin-bottom:20px;">Une seule manche active à la fois. Le lien Facebook est celui utilisé par le bouton "Je relève le défi" sur le site public.</div>
+      <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:6px;">Nouvelle manche</div>
+      <div style="font-size:12px; color:#888; margin-bottom:20px;">Plusieurs manches peuvent coexister — une seule est "active" à la fois (visible sur le site public). Le lien Facebook est celui utilisé par le bouton "Je relève le défi".</div>
+
+      <input type="hidden" id="dm-editing-id" value="">
 
       <div class="form-group" style="margin-bottom:14px;">
         <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">TITRE DE LA MANCHE</label>
@@ -8019,9 +8352,14 @@ function trackRecherche(terme) {
 
       <button onclick="saveDefiMancheHandler()" id="dm-save-btn"
         style="width:100%;padding:13px;background:#E8622A;color:#fff;border:none;border-radius:8px;font-family:'Syne';font-size:14px;font-weight:700;cursor:pointer;">
-        ✦ Enregistrer
+        ✦ Créer la manche
       </button>
       <p id="dm-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
+
+      <div style="margin-top:28px;padding-top:20px;border-top:1px solid #eee;">
+        <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:14px;">Manches</div>
+        <div id="defiManchesAdminList" style="font-size:13px;color:#888;">Chargement...</div>
+      </div>
     </div>
 
     <!-- Tab DÉFI-V224 : PARTICIPANTS -->
@@ -8055,6 +8393,14 @@ function trackRecherche(terme) {
     <!-- Tab DÉFI-V224 : CADEAUX -->
     <div id="panelDefiPrix" style="padding:28px; display:none;">
       <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:16px;">Nouveau cadeau</div>
+
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">MANCHE *</label>
+        <select id="dp-manche" onchange="onDefiPrixMancheChange()"
+          style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+          <option value="">Chargement...</option>
+        </select>
+      </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
         <div>
@@ -8105,7 +8451,7 @@ function trackRecherche(terme) {
       <p id="dp-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
 
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid #eee;">
-        <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:14px;">Cadeaux de la manche</div>
+        <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:14px;">Cadeaux de la manche sélectionnée</div>
         <div id="defiPrixAdminList" style="font-size:13px;color:#888;">Chargement...</div>
       </div>
     </div>
