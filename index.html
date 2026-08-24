@@ -748,6 +748,9 @@ section { padding: 96px 6vw; width: 100%; }
   align-items: center; justify-content: center; padding: 20px;
 }
 .modal-overlay.open { display: flex; }
+/* Seule modale de type .modal-overlay ouverte DEPUIS le panneau admin
+   (#adminOverlay, z-index:500) — elle doit donc passer au-dessus. */
+#defiEditParticipantModal { z-index: 600; }
 .modal-box {
   background: var(--surface); border-radius: 16px;
   width: 100%; max-width: 640px; max-height: 90vh;
