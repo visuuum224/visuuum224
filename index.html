@@ -1461,6 +1461,26 @@ footer {
     return uid;
   };
 
+  // Auto-liaison en libre-service : quand la création automatique du compte a
+  // échoué au moment de la validation (généralement parce qu'un compte
+  // Firebase existait déjà pour cet email — cas impossible à récupérer côté
+  // client sans API admin), l'entreprise peut, une fois connectée, retrouver
+  // sa propre fiche par son email et se l'associer elle-même. Protégé par une
+  // règle Firestore dédiée : uniquement si la fiche n'a encore aucun
+  // propriétaire ET que l'email correspond exactement à celui du compte connecté.
+  window.claimMyEntreprise = async function(uid, email) {
+    if (!email) return null;
+    const q = query(collection(db, "entreprises"), where("email", "==", email), where("ownerUid", "==", ""));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const docSnap = snap.docs[0];
+    await updateDoc(doc(db, "entreprises", docSnap.id), {
+      ownerUid: uid,
+      dateCompte: new Date().toLocaleDateString('fr-FR')
+    });
+    return { id: docSnap.id, ...docSnap.data(), ownerUid: uid };
+  };
+
   window.setEntrepriseStatut = async function(entrepriseId, statut) {
     return await updateDoc(doc(db, "entreprises", entrepriseId), { statut });
   };
@@ -5954,12 +5974,19 @@ async function validerDemande(id) {
   if (el) el.style.opacity = '0.5';
   try {
     const inscription = window._demandesCache[id];
-    await window.validerInscriptionFirestore(id, inscription);
+    const result = await window.validerInscriptionFirestore(id, inscription);
     if (el) el.remove();
     decrementDemandesBadge();
     await loadAdminList(); // recharge la liste ET window._adminEntCache avant de recompter
     animateCounter('admin-count-entreprises', (window._adminEntCache || entreprises).length, '+');
     logStaffAction('validation', 'demande', (inscription && inscription.nom) || '(sans nom)');
+
+    // La création du compte peut échouer silencieusement (le plus souvent parce
+    // qu'un compte Firebase existe déjà pour cet email) — la fiche est bien créée,
+    // mais personne ne peut s'y connecter tant qu'elle n'est pas associée.
+    if (!result || !result.ownerUid) {
+      alert('⚠️ La fiche "' + ((inscription && inscription.nom) || '') + '" a été créée, mais aucun compte n\'a pu y être associé automatiquement (un compte existe probablement déjà pour cet email).\n\nL\'entreprise peut se connecter (avec son mot de passe existant, ou "Mot de passe oublié ?") puis cliquer sur "Rechercher ma fiche" dans son Espace Entreprise. Sinon, réessaie depuis l\'onglet Comptes → Lier une entreprise.');
+    }
   } catch(err) {
     alert('Erreur lors de la validation. Réessayez.');
     if (el) el.style.opacity = '1';
@@ -6143,6 +6170,47 @@ async function changePasswordHandler() {
   }
 }
 
+// Libre-service : l'entreprise retrouve et s'associe elle-même sa fiche
+// quand la liaison automatique a échoué à la validation (voir claimMyEntreprise).
+async function claimMyEntrepriseHandler(uid) {
+  const btn = document.getElementById('claim-ent-btn');
+  const msg = document.getElementById('claim-ent-msg');
+  const email = window.currentAdminUser && window.currentAdminUser.email;
+
+  if (!email) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = 'Impossible de récupérer ton email de connexion. Reconnecte-toi et réessaie.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Recherche...';
+  msg.style.display = 'none';
+
+  try {
+    const ent = await window.claimMyEntreprise(uid, email);
+    if (ent) {
+      msg.style.display = 'block';
+      msg.style.color = '#2E7D46';
+      msg.textContent = '✓ Fiche « ' + (ent.nom || '') + ' » trouvée et associée à ton compte !';
+      setTimeout(() => loadEntEntrepriseTab(uid), 1200);
+    } else {
+      msg.style.display = 'block';
+      msg.style.color = '#A32D2D';
+      msg.textContent = 'Aucune fiche non réclamée trouvée pour ' + email + '. Contacte VISUUUM 224.';
+      btn.disabled = false;
+      btn.textContent = '🔎 Rechercher ma fiche';
+    }
+  } catch(err) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = "❌ Erreur lors de la recherche. Réessaie dans un instant.";
+    btn.disabled = false;
+    btn.textContent = '🔎 Rechercher ma fiche';
+  }
+}
+
 // ── ONGLET 2 : DONNÉES ENTREPRISE ──
 async function loadEntEntrepriseTab(uid) {
   const el = document.getElementById('entPanelEntreprise');
@@ -6160,7 +6228,13 @@ async function loadEntEntrepriseTab(uid) {
         <div style="text-align:center;padding:20px;">
           <div style="font-size:32px;margin-bottom:12px;">🏢</div>
           <div style="font-weight:700;color:#111;margin-bottom:6px;">Aucune fiche associée à ce compte</div>
-          <div style="font-size:12px;color:#888;">Contactez VISUUUM 224 si vous pensez qu'il s'agit d'une erreur.</div>
+          <div style="font-size:12px;color:#888;margin-bottom:16px;">Si tu viens d'être validé(e), il se peut que la liaison automatique ait échoué. Essaie de rechercher ta fiche par ton adresse email :</div>
+          <button onclick="claimMyEntrepriseHandler('${uid}')" id="claim-ent-btn"
+            style="padding:11px 22px;background:#E8622A;color:#fff;border:none;border-radius:8px;font-family:'Syne';font-size:13px;font-weight:700;cursor:pointer;">
+            🔎 Rechercher ma fiche
+          </button>
+          <p id="claim-ent-msg" style="font-size:12px;margin-top:12px;display:none;"></p>
+          <div style="font-size:11px;color:#aaa;margin-top:16px;">Toujours rien ? Contacte VISUUUM 224, ton adresse email n'est peut-être pas celle utilisée à l'inscription.</div>
         </div>`;
       return;
     }
@@ -7181,7 +7255,7 @@ async function linkEntrepriseHandler() {
       loadComptesEntList();
     } else {
       msg.style.color = '#A32D2D';
-      msg.textContent = 'Un compte existe peut-être déjà pour cet email.';
+      msg.textContent = 'Un compte existe déjà pour cet email — demande à l\'entreprise de se connecter (avec "Mot de passe oublié ?" si besoin) puis de cliquer sur "Rechercher ma fiche" dans son Espace Entreprise.';
     }
   } catch(err) {
     msg.style.display = 'block'; msg.style.color = '#A32D2D';
