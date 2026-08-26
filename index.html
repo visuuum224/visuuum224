@@ -829,8 +829,11 @@ section { padding: 96px 6vw; width: 100%; }
 /* ── VIDEO ── */
 #video { background: var(--surface); }
 .video-wrapper {
-  max-width: 800px;
+  max-width: 1120px;
   margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
 }
 .video-container {
   position: relative;
@@ -862,6 +865,9 @@ section { padding: 96px 6vw; width: 100%; }
 .video-yt {
   font-size: 12px;
   font-weight: 600;
+}
+@media (max-width: 860px) {
+  .video-wrapper { grid-template-columns: 1fr; gap: 32px; }
 }
 
 
@@ -1874,6 +1880,7 @@ footer {
       regionAdmin: inscriptionData.regionAdmin || '',
       wa: inscriptionData.whatsapp,
       email: inscriptionData.email || '',
+      siteWeb: inscriptionData.siteWeb || '',
       emoji: '🏢',
       desc: inscriptionData.description,
       logo: inscriptionData.logo || '',
@@ -2328,25 +2335,46 @@ footer {
 <section id="video">
   <div class="section-label reveal">Notre aventure</div>
   <h2 class="section-title reveal">VISUUUM 224 EN VIDÉO</h2>
-  <p class="section-sub reveal">Découvrez en 60 secondes comment VISUUUM 224 connecte les entrepreneurs guinéens au monde entier.</p>
+  <p class="section-sub reveal">Le teaser officiel, et la présentation complète de la plateforme.</p>
 
   <div class="video-wrapper reveal">
-    <div class="video-container">
-      <iframe
-        src="https://www.youtube.com/embed/E8iNkGaJ1YM?rel=0&modestbranding=1&color=white"
-        title="VISUUUM 224 — La vitrine digitale des entrepreneurs guinéens"
-        frameborder="0"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen>
-      </iframe>
+    <div>
+      <div class="video-container">
+        <iframe
+          src="https://www.youtube.com/embed/E8iNkGaJ1YM?rel=0&modestbranding=1&color=white"
+          title="VISUUUM 224 — La vitrine digitale des entrepreneurs guinéens"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen>
+        </iframe>
+      </div>
+      <div class="video-caption">
+        <span class="video-tag">🎬 Vidéo officielle (60s)</span>
+        <span class="video-yt">
+          <a href="https://www.youtube.com/watch?v=E8iNkGaJ1YM" target="_blank" style="color:var(--orange);text-decoration:none;">
+            Voir sur YouTube →
+          </a>
+        </span>
+      </div>
     </div>
-    <div class="video-caption">
-      <span class="video-tag">🎬 Vidéo officielle</span>
-      <span class="video-yt">
-        <a href="https://www.youtube.com/watch?v=E8iNkGaJ1YM" target="_blank" style="color:var(--orange);text-decoration:none;">
-          Voir sur YouTube →
-        </a>
-      </span>
+    <div>
+      <div class="video-container">
+        <iframe
+          src="https://www.youtube.com/embed/Tk2OTG2QsBw?rel=0&modestbranding=1&color=white"
+          title="VISUUUM 224 — Présentation complète de la plateforme"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen>
+        </iframe>
+      </div>
+      <div class="video-caption">
+        <span class="video-tag">🎓 Présentation complète</span>
+        <span class="video-yt">
+          <a href="https://www.youtube.com/watch?v=Tk2OTG2QsBw" target="_blank" style="color:var(--orange);text-decoration:none;">
+            Voir sur YouTube →
+          </a>
+        </span>
+      </div>
     </div>
   </div>
 </section>
@@ -2464,6 +2492,10 @@ footer {
       <div class="form-group">
         <label class="form-label">Email *</label>
         <input type="email" class="form-input" id="f-email" placeholder="votre@email.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Site internet (optionnel)</label>
+        <input type="url" class="form-input" id="f-site-web" placeholder="https://votre-site.com">
       </div>
       <button class="btn-primary" style="width:100%;justify-content:center" onclick="submitForm()">
         Envoyer mon inscription ✦
@@ -2865,6 +2897,7 @@ function openModal(idx) {
     ${e.regionAdmin ? `<div class="modal-info-item"><div class="modal-info-label">RÉGION ADMIN.</div><div class="modal-info-value">📍 ${e.regionAdmin}</div></div>` : ''}
     <div class="modal-info-item"><div class="modal-info-label">WHATSAPP</div><div class="modal-info-value">${e.wa || 'N/A'}</div></div>
     ${e.email ? `<div class="modal-info-item" style="grid-column:1/-1"><div class="modal-info-label">EMAIL</div><div class="modal-info-value">${e.email}</div></div>` : ''}
+    ${e.siteWeb ? `<div class="modal-info-item" style="grid-column:1/-1"><div class="modal-info-label">SITE INTERNET</div><div class="modal-info-value">🔗 <a href="${e.siteWeb}" target="_blank" rel="noopener" style="color:var(--orange);text-decoration:none;">${e.siteWeb.replace(/^https?:\/\//i,'').replace(/\/$/,'')}</a></div></div>` : ''}
     ${adressesHtml}
   `;
 
@@ -3636,6 +3669,7 @@ async function submitForm() {
   const produitsRaw= document.getElementById('f-produits').value.trim();
   const mapsLink   = document.getElementById('f-maps-link').value.trim();
   const email      = document.getElementById('f-email').value.trim();
+  const siteWeb    = document.getElementById('f-site-web').value.trim();
   const regionNat  = document.getElementById('f-region-nat').value;
   const regionAdmin= document.getElementById('f-region-admin').value;
 
@@ -3646,6 +3680,10 @@ async function submitForm() {
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     alert('Merci de renseigner une adresse email valide.');
+    return;
+  }
+  if (siteWeb && !/^https?:\/\//i.test(siteWeb)) {
+    alert('Le site internet doit commencer par http:// ou https://');
     return;
   }
 
@@ -3690,7 +3728,7 @@ async function submitForm() {
 
   const data = {
     nom, responsable: resp, ville,
-    whatsapp: wa, secteur, description: desc, produits, logo, email,
+    whatsapp: wa, secteur, description: desc, produits, logo, email, siteWeb,
     regionNat, regionAdmin,
     lat: coords ? coords.lat : null,
     lng: coords ? coords.lng : null,
@@ -4627,6 +4665,7 @@ function editEntrepriseHandler(id) {
   document.getElementById('a-ville').value = e.ville || '';
   document.getElementById('a-wa').value = e.wa || '';
   document.getElementById('a-email').value = e.email || '';
+  document.getElementById('a-site-web').value = e.siteWeb || '';
   document.getElementById('a-emoji').value = e.emoji || '';
   document.getElementById('a-desc').value = e.desc || '';
   if (document.getElementById('a-region-nat')) document.getElementById('a-region-nat').value = e.regionNat || '';
@@ -4655,7 +4694,7 @@ function editEntrepriseHandler(id) {
 
 function cancelEditEntreprise() {
   document.getElementById('a-editing-id').value = '';
-  ['a-nom','a-responsable','a-ville','a-wa','a-email','a-emoji','a-desc','a-logo'].forEach(id => document.getElementById(id).value = '');
+  ['a-nom','a-responsable','a-ville','a-wa','a-email','a-site-web','a-emoji','a-desc','a-logo'].forEach(id => document.getElementById(id).value = '');
   if (document.getElementById('a-region-nat')) document.getElementById('a-region-nat').value = '';
   if (document.getElementById('a-region-admin')) document.getElementById('a-region-admin').value = '';
   document.getElementById('a-secteur').value = '';
@@ -4677,12 +4716,17 @@ async function adminAddEntreprise() {
   const ville   = document.getElementById('a-ville').value.trim();
   const wa      = document.getElementById('a-wa').value.trim();
   const email   = document.getElementById('a-email').value.trim();
+  const siteWeb = document.getElementById('a-site-web').value.trim();
   const emoji   = document.getElementById('a-emoji').value.trim() || '🏢';
   const desc    = document.getElementById('a-desc').value.trim();
   let   logo    = document.getElementById('a-logo').value.trim();
 
   if (!nom || !secteur || !ville || !wa || !desc) {
     alert('Merci de remplir tous les champs obligatoires (*).');
+    return;
+  }
+  if (siteWeb && !/^https?:\/\//i.test(siteWeb)) {
+    alert('Le site internet doit commencer par http:// ou https://');
     return;
   }
 
@@ -4739,7 +4783,7 @@ async function adminAddEntreprise() {
   }
 
   const data = {
-    nom, responsable: resp, secteur, tag, ville, regionNat, regionAdmin, wa, email, emoji, desc, logo, adresses, ownerUid,
+    nom, responsable: resp, secteur, tag, ville, regionNat, regionAdmin, wa, email, siteWeb, emoji, desc, logo, adresses, ownerUid,
     dateAjout: existing ? (existing.dateAjout || '') : new Date().toLocaleDateString('fr-FR'),
     dateCompte
   };
@@ -4776,7 +4820,7 @@ async function adminAddEntreprise() {
         : '✅ ' + nom + ' ajoutée avec succès !';
 
       // Reset form
-      ['a-nom','a-responsable','a-ville','a-wa','a-email','a-emoji','a-desc','a-logo'].forEach(id => document.getElementById(id).value = '');
+      ['a-nom','a-responsable','a-ville','a-wa','a-email','a-site-web','a-emoji','a-desc','a-logo'].forEach(id => document.getElementById(id).value = '');
       if(document.getElementById('a-region-nat')) document.getElementById('a-region-nat').value='';
       if(document.getElementById('a-region-admin')) document.getElementById('a-region-admin').value='';
       resetAdresses();
@@ -4825,8 +4869,9 @@ async function downloadTemplate() {
     ["desc", "✅ OUI", "Description de l'activité (2-3 phrases)", "Café arabica de haute qualité cultivé en altitude.", "Texte libre (max 300 caractères)"],
     ["produits", "✅ OUI", "Produits / services proposés, séparés par des virgules", "Café de Macenta, Café torréfié, Livraison à domicile", "Texte libre, séparé par des virgules"],
     ["email", "✅ OUI", "Adresse email de contact", "contact@cafe-macenta.com", "email@domaine.com"],
-    ["region_nat", "⬜ OPTIONNEL", "Région naturelle de Guinée (liste déroulante colonne J)", REGIONS_NAT[0], REGIONS_NAT.join(" | ")],
-    ["region_admin", "⬜ OPTIONNEL", "Région administrative (liste déroulante colonne K)", REGIONS_ADMIN[0], REGIONS_ADMIN.join(" | ")],
+    ["site_web", "⬜ OPTIONNEL", "Site internet de l'entreprise", "https://cafe-macenta.com", "URL (https://...)"],
+    ["region_nat", "⬜ OPTIONNEL", "Région naturelle de Guinée (liste déroulante colonne K)", REGIONS_NAT[0], REGIONS_NAT.join(" | ")],
+    ["region_admin", "⬜ OPTIONNEL", "Région administrative (liste déroulante colonne L)", REGIONS_ADMIN[0], REGIONS_ADMIN.join(" | ")],
     ["lat", "⬜ OPTIONNEL", "Latitude GPS (voir coordonnées Google Maps)", "9.5370", "Nombre décimal"],
     ["lng", "⬜ OPTIONNEL", "Longitude GPS (voir coordonnées Google Maps)", "-13.6773", "Nombre décimal"],
     ["logo", "⬜ OPTIONNEL", "Lien URL vers une image de logo/photo déjà hébergée en ligne", "https://exemple.com/logo.png", "URL d'image (https://...)"],
@@ -4842,6 +4887,7 @@ async function downloadTemplate() {
     {header:"nom *", width:28}, {header:"responsable *", width:24}, {header:"secteur *", width:32},
     {header:"tag *", width:16}, {header:"ville *", width:22}, {header:"wa *", width:22},
     {header:"desc *", width:50}, {header:"produits *", width:40}, {header:"email *", width:28},
+    {header:"site_web", width:28},
     {header:"region_nat", width:22}, {header:"region_admin", width:22},
     {header:"lat", width:12}, {header:"lng", width:12}, {header:"logo", width:28}, {header:"emoji", width:8}
   ];
@@ -4849,7 +4895,7 @@ async function downloadTemplate() {
   wsImport.addRow([
     "Café Macenta SARL", "Mamadou Diallo", SECTEURS[0], TAGS[0], "Macenta", "+224620000000",
     "Café arabica de haute qualité cultivé en altitude dans la région forestière.",
-    "Café de Macenta, Café torréfié, Livraison à domicile", "cafe@macenta.com",
+    "Café de Macenta, Café torréfié, Livraison à domicile", "cafe@macenta.com", "https://cafe-macenta.com",
     "Haute Guinée", "Kankan", 9.5370, -13.6773, "", "☕"
   ]);
 
@@ -4861,7 +4907,7 @@ async function downloadTemplate() {
   REGIONS_NAT.forEach((v, i) => wsListes.getCell(`C${i+1}`).value = v);
   REGIONS_ADMIN.forEach((v, i) => wsListes.getCell(`D${i+1}`).value = v);
 
-  // ── Menus déroulants sur 200 lignes (secteur=C, tag=D, region_nat=J, region_admin=K) ──
+  // ── Menus déroulants sur 200 lignes (secteur=C, tag=D, region_nat=K, region_admin=L) ──
   const MAX_ROWS = 200;
   for (let row = 2; row <= MAX_ROWS; row++) {
     wsImport.getCell(`C${row}`).dataValidation = {
@@ -4874,12 +4920,12 @@ async function downloadTemplate() {
       formulae: [`Listes!$B$1:$B$${TAGS.length}`],
       errorTitle: 'Tag invalide', error: 'Merci de choisir un tag dans la liste.'
     };
-    wsImport.getCell(`J${row}`).dataValidation = {
+    wsImport.getCell(`K${row}`).dataValidation = {
       type: 'list', allowBlank: true, showErrorMessage: true,
       formulae: [`Listes!$C$1:$C$${REGIONS_NAT.length}`],
       errorTitle: 'Région invalide', error: 'Merci de choisir une région dans la liste.'
     };
-    wsImport.getCell(`K${row}`).dataValidation = {
+    wsImport.getCell(`L${row}`).dataValidation = {
       type: 'list', allowBlank: true, showErrorMessage: true,
       formulae: [`Listes!$D$1:$D$${REGIONS_ADMIN.length}`],
       errorTitle: 'Région invalide', error: 'Merci de choisir une région dans la liste.'
@@ -4943,12 +4989,13 @@ function processImportFile(file) {
       secteur:     r.secteur || r['Secteur'] || '',
       tag:     r.tag || r['Tag'] || r['Secteur'] || '',
       ville:   r.ville || r['Ville'] || '',
-      wa:         r.wa || r['WhatsApp'] || r['Contact / Site web'] || '',
+      wa:         r.wa || r['WhatsApp'] || '',
       region_nat:  r.region_nat || r['region_nat'] || r['Région naturelle'] || '',
       regionNat:   r.region_nat || r['region_nat'] || r['Région naturelle'] || '',
       region_admin: r.region_admin || r['region_admin'] || r['Région administrative'] || '',
       regionAdmin:  r.region_admin || r['region_admin'] || r['Région administrative'] || '',
       email:      r.email || r['Email'] || '',
+      siteWeb:    r.site_web || r['site_web'] || r['Site internet'] || r['Site web'] || '',
       desc:       r.desc || r['Description courte'] || r['Description'] || '',
       produits:   (r.produits || r['Produits'] || '').split(',').map(p => p.trim()).filter(p => p.length > 0),
       lat:        (r.lat !== undefined && r.lat !== '') ? parseFloat(r.lat) : null,
@@ -6355,6 +6402,12 @@ async function loadEntEntrepriseTab(uid) {
           style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
       </div>
 
+      <div style="margin-bottom:20px;">
+        <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">SITE INTERNET (optionnel)</label>
+        <input id="me-site-web" type="url" value="${ent.siteWeb || ''}" placeholder="https://votre-site.com"
+          style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+      </div>
+
       <button onclick="saveMyEntreprise()"
         style="width:100%;padding:13px;background:#E8622A;color:#fff;border:none;border-radius:8px;font-family:'Syne';font-size:14px;font-weight:700;cursor:pointer;">
         ✦ Enregistrer les modifications
@@ -6411,6 +6464,14 @@ async function saveMyEntreprise() {
   const mapsLink = document.getElementById('me-maps-link').value.trim();
   const coords = extractCoordsFromMapsLink(mapsLink);
 
+  const siteWeb = document.getElementById('me-site-web').value.trim();
+  if (siteWeb && !/^https?:\/\//i.test(siteWeb)) {
+    msgEl.style.display = 'block';
+    msgEl.style.color = '#A32D2D';
+    msgEl.textContent = 'Le site internet doit commencer par http:// ou https://';
+    return;
+  }
+
   const data = {
     nom:         document.getElementById('me-nom').value.trim(),
     responsable: document.getElementById('me-responsable').value.trim(),
@@ -6424,6 +6485,7 @@ async function saveMyEntreprise() {
     lat: coords ? coords.lat : (ent.lat != null ? ent.lat : null),
     lng: coords ? coords.lng : (ent.lng != null ? ent.lng : null),
     email:       document.getElementById('me-email').value.trim(),
+    siteWeb,
   };
 
   // Upload d'un nouveau logo si un fichier a été choisi
@@ -8472,6 +8534,12 @@ function trackRecherche(terme) {
           <input id="a-emoji" type="text" placeholder="🌿" maxlength="2"
             style="width:100%; padding:11px 14px; border:1.5px solid #ddd; border-radius:6px; font-family:'Syne'; font-size:18px; outline:none;">
         </div>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="font-size:10px; font-weight:700; letter-spacing:.12em; color:#888; display:block; margin-bottom:6px;">SITE INTERNET (optionnel)</label>
+        <input id="a-site-web" type="url" placeholder="https://entreprise.com"
+          style="width:100%; padding:11px 14px; border:1.5px solid #ddd; border-radius:6px; font-family:'Syne'; font-size:13px; outline:none;">
       </div>
 
       <!-- Section Adresses multiples -->
