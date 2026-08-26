@@ -1487,6 +1487,21 @@ footer {
     return { id: docSnap.id, ...docSnap.data(), ownerUid: uid };
   };
 
+  // ── Configuration générale du site (liens des 2 vidéos de la page d'accueil) ──
+  window.getSiteVideos = async function() {
+    try {
+      const snap = await getDoc(doc(db, "site_config", "videos"));
+      return snap.exists() ? snap.data() : null;
+    } catch(err) {
+      console.warn("Chargement config vidéos échoué:", err);
+      return null;
+    }
+  };
+
+  window.saveSiteVideos = async function(data) {
+    return await setDoc(doc(db, "site_config", "videos"), data, { merge: true });
+  };
+
   window.setEntrepriseStatut = async function(entrepriseId, statut) {
     return await updateDoc(doc(db, "entreprises", entrepriseId), { statut });
   };
@@ -1965,6 +1980,7 @@ footer {
     loadProduitsFromFirebase();
     loadPartenairesFromFirebase();
     if (window.initDefiPublic) window.initDefiPublic();
+    if (window.initSiteVideos) window.initSiteVideos();
   });
 </script>
 
@@ -2340,7 +2356,7 @@ footer {
   <div class="video-wrapper reveal">
     <div>
       <div class="video-container">
-        <iframe
+        <iframe id="video-frame-1"
           src="https://www.youtube.com/embed/E8iNkGaJ1YM?rel=0&modestbranding=1&color=white"
           title="VISUUUM 224 — La vitrine digitale des entrepreneurs guinéens"
           frameborder="0"
@@ -2349,9 +2365,9 @@ footer {
         </iframe>
       </div>
       <div class="video-caption">
-        <span class="video-tag">🎬 Vidéo officielle (60s)</span>
+        <span class="video-tag" id="video-label-1">🎬 Vidéo officielle (60s)</span>
         <span class="video-yt">
-          <a href="https://www.youtube.com/watch?v=E8iNkGaJ1YM" target="_blank" style="color:var(--orange);text-decoration:none;">
+          <a href="https://www.youtube.com/watch?v=E8iNkGaJ1YM" target="_blank" id="video-link-1" style="color:var(--orange);text-decoration:none;">
             Voir sur YouTube →
           </a>
         </span>
@@ -2359,7 +2375,7 @@ footer {
     </div>
     <div>
       <div class="video-container">
-        <iframe
+        <iframe id="video-frame-2"
           src="https://www.youtube.com/embed/jGpEv7BzNPo?rel=0&modestbranding=1&color=white"
           title="VISUUUM 224 — Présentation complète de la plateforme"
           frameborder="0"
@@ -2368,9 +2384,9 @@ footer {
         </iframe>
       </div>
       <div class="video-caption">
-        <span class="video-tag">🎓 Présentation complète</span>
+        <span class="video-tag" id="video-label-2">🎓 Présentation complète</span>
         <span class="video-yt">
-          <a href="https://www.youtube.com/watch?v=jGpEv7BzNPo" target="_blank" style="color:var(--orange);text-decoration:none;">
+          <a href="https://www.youtube.com/watch?v=jGpEv7BzNPo" target="_blank" id="video-link-2" style="color:var(--orange);text-decoration:none;">
             Voir sur YouTube →
           </a>
         </span>
@@ -3844,6 +3860,50 @@ async function initDefiPublic() {
 }
 window.initDefiPublic = initDefiPublic;
 
+// ── Liens des 2 vidéos de la page d'accueil, configurables depuis l'admin ──
+// Reste toujours fonctionnel même sans configuration : les liens/libellés
+// écrits en dur dans le HTML servent de repli si aucun document n'existe
+// encore côté Firestore (ou en cas de souci de connexion).
+function extractYoutubeId(url) {
+  if (!url) return null;
+  const patterns = [
+    /(?:youtu\.be\/)([\w-]{6,})/,
+    /(?:youtube\.com\/watch\?v=)([\w-]{6,})/,
+    /(?:youtube\.com\/embed\/)([\w-]{6,})/,
+    /(?:youtube\.com\/shorts\/)([\w-]{6,})/
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+async function initSiteVideos() {
+  if (!window.getSiteVideos) return;
+  try {
+    const cfg = await window.getSiteVideos();
+    if (!cfg) return; // rien configuré : on garde les valeurs par défaut du HTML
+    applySiteVideo(1, cfg.video1Url, cfg.video1Label);
+    applySiteVideo(2, cfg.video2Url, cfg.video2Label);
+  } catch(e) { console.warn('Chargement config vidéos échoué', e); }
+}
+window.initSiteVideos = initSiteVideos;
+
+function applySiteVideo(slot, url, label) {
+  const id = extractYoutubeId(url);
+  if (id) {
+    const frame = document.getElementById('video-frame-' + slot);
+    const link = document.getElementById('video-link-' + slot);
+    if (frame) frame.src = `https://www.youtube.com/embed/${id}?rel=0&modestbranding=1&color=white`;
+    if (link) link.href = `https://www.youtube.com/watch?v=${id}`;
+  }
+  if (label) {
+    const labelEl = document.getElementById('video-label-' + slot);
+    if (labelEl) labelEl.textContent = label;
+  }
+}
+
 // Formate une date ISO ("2026-10-01") en format lisible français ("01/10/2026")
 function formatDateFr(iso) {
   if (!iso) return null;
@@ -4562,7 +4622,7 @@ const ENTREPRISES_SUBTABS = ['add', 'list', 'produit', 'partenaires'];
 const DEFI_SUBTABS = ['defiManche', 'defiParticipants', 'defiVotes', 'defiPrix'];
 
 function switchTab(tab) {
-  const tabs = ['add', 'list', 'produit', 'demandes', 'partenaires', 'comptes', 'historique',
+  const tabs = ['add', 'list', 'produit', 'demandes', 'partenaires', 'comptes', 'historique', 'video',
     'defiManche', 'defiParticipants', 'defiVotes', 'defiPrix'];
   const isSubtab = ENTREPRISES_SUBTABS.includes(tab);
   const isDefiSubtab = DEFI_SUBTABS.includes(tab);
@@ -4607,6 +4667,7 @@ function switchTab(tab) {
   if (tab === 'partenaires') loadPartenairesAdminList();
   if (tab === 'comptes') loadComptesTab();
   if (tab === 'historique') loadHistoriqueTab();
+  if (tab === 'video') loadVideoAdminTab();
   if (tab === 'defiManche') loadDefiMancheAdmin();
   if (tab === 'defiParticipants') loadDefiParticipantsAdmin();
   if (tab === 'defiVotes') loadDefiVotesAdmin();
@@ -7522,6 +7583,71 @@ function resetHistoriqueFilter() {
   registerPaginatedList('historique', window._historiqueCache || [], renderHistoriquePage);
 }
 
+// ── VIDÉOS PAGE D'ACCUEIL (admin) ──────────────────────────────────────────
+async function loadVideoAdminTab() {
+  const msg = document.getElementById('video-admin-msg');
+  if (msg) msg.style.display = 'none';
+  try {
+    const cfg = window.getSiteVideos ? await window.getSiteVideos() : null;
+    // En l'absence de configuration, on pré-remplit avec ce qui est déjà
+    // affiché sur le site (valeurs par défaut écrites dans le HTML), pour que
+    // l'admin ne tombe jamais sur un formulaire vide au premier usage.
+    document.getElementById('video-admin-url-1').value = (cfg && cfg.video1Url) || 'https://www.youtube.com/watch?v=E8iNkGaJ1YM';
+    document.getElementById('video-admin-label-1').value = (cfg && cfg.video1Label) || '🎬 Vidéo officielle (60s)';
+    document.getElementById('video-admin-url-2').value = (cfg && cfg.video2Url) || 'https://www.youtube.com/watch?v=jGpEv7BzNPo';
+    document.getElementById('video-admin-label-2').value = (cfg && cfg.video2Label) || '🎓 Présentation complète';
+  } catch(err) {
+    console.warn('Chargement config vidéos (admin) échoué:', err);
+  }
+}
+
+async function saveVideoAdminHandler() {
+  const video1Url = document.getElementById('video-admin-url-1').value.trim();
+  const video1Label = document.getElementById('video-admin-label-1').value.trim();
+  const video2Url = document.getElementById('video-admin-url-2').value.trim();
+  const video2Label = document.getElementById('video-admin-label-2').value.trim();
+  const btn = document.getElementById('video-admin-save-btn');
+  const msg = document.getElementById('video-admin-msg');
+
+  if (!video1Url || !video2Url) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = 'Les deux liens vidéo sont obligatoires.';
+    return;
+  }
+  const id1 = extractYoutubeId(video1Url);
+  const id2 = extractYoutubeId(video2Url);
+  if (!id1 || !id2) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = "Un des liens n'est pas reconnu comme un lien YouTube valide (youtu.be/... ou youtube.com/watch?v=...).";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Enregistrement...';
+  msg.style.display = 'none';
+
+  try {
+    await window.saveSiteVideos({ video1Url, video1Label, video2Url, video2Label });
+    // Répercute immédiatement sur le site public, sans attendre un rechargement de page
+    applySiteVideo(1, video1Url, video1Label);
+    applySiteVideo(2, video2Url, video2Label);
+
+    msg.style.display = 'block';
+    msg.style.color = '#2E7D46';
+    msg.textContent = '✓ Vidéos mises à jour avec succès !';
+    logStaffAction('modification', 'config-video', "Vidéos page d'accueil");
+  } catch(err) {
+    msg.style.display = 'block';
+    msg.style.color = '#A32D2D';
+    msg.textContent = "❌ Erreur lors de l'enregistrement.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✦ Enregistrer';
+  }
+}
+
 // ── #DÉFI-V224 : PARTIE ADMIN ────────────────────────────────────────────────
 
 // -- Sous-onglet MANCHE --
@@ -8410,6 +8536,11 @@ function trackRecherche(terme) {
         style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
         📜 Historique
       </button>
+
+      <button class="admin-tab" id="tab-video" onclick="switchTab('video')"
+        style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
+        🎥 Vidéo
+      </button>
     </div>
 
     <!-- Tab ADD -->
@@ -9095,6 +9226,46 @@ function trackRecherche(terme) {
         <button onclick="resetHistoriqueFilter()" style="padding:9px 14px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;color:#888;cursor:pointer;">✕ Réinitialiser</button>
       </div>
       <div id="historiqueList" style="font-size:13px;color:#888;">Chargement...</div>
+    </div>
+
+    <!-- Tab VIDÉO -->
+    <div id="panelVideo" style="padding:28px; display:none;">
+      <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:6px;">Vidéos de la page d'accueil</div>
+      <div style="font-size:12px; color:#888; margin-bottom:24px;">Colle simplement le lien YouTube tel quel (youtu.be/... ou youtube.com/watch?v=...) — l'identifiant est extrait automatiquement. Les changements sont visibles immédiatement sur le site, sans toucher au code.</div>
+
+      <div style="background:#fafafa;border-radius:10px;padding:18px;margin-bottom:16px;">
+        <div style="font-size:12px;font-weight:700;color:#111;margin-bottom:12px;">VIDÉO 1</div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">LIEN YOUTUBE</label>
+          <input id="video-admin-url-1" type="url" placeholder="https://youtu.be/..."
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">LIBELLÉ AFFICHÉ</label>
+          <input id="video-admin-label-1" type="text" placeholder="Ex : 🎬 Vidéo officielle (60s)"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+      </div>
+
+      <div style="background:#fafafa;border-radius:10px;padding:18px;margin-bottom:20px;">
+        <div style="font-size:12px;font-weight:700;color:#111;margin-bottom:12px;">VIDÉO 2</div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">LIEN YOUTUBE</label>
+          <input id="video-admin-url-2" type="url" placeholder="https://youtu.be/..."
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">LIBELLÉ AFFICHÉ</label>
+          <input id="video-admin-label-2" type="text" placeholder="Ex : 🎓 Présentation complète"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+        </div>
+      </div>
+
+      <button onclick="saveVideoAdminHandler()" id="video-admin-save-btn"
+        style="width:100%;padding:13px;background:#E8622A;color:#fff;border:none;border-radius:8px;font-family:'Syne';font-size:14px;font-weight:700;cursor:pointer;">
+        ✦ Enregistrer
+      </button>
+      <p id="video-admin-msg" style="text-align:center;font-size:13px;margin-top:12px;display:none;"></p>
     </div>
 
     <!-- Tab DÉFI-V224 : MANCHE -->
