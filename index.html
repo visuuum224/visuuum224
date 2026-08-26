@@ -8030,7 +8030,12 @@ async function loadDefiVotesAdmin() {
       document.getElementById('dv-stat-leader').textContent = '—';
       return;
     }
-    if (!defiParticipantsCache.length && window.getDefiParticipants) defiParticipantsCache = await window.getDefiParticipants(activeId);
+    // Toujours recharger les participants depuis Firestore (jamais se fier à un
+    // cache potentiellement obsolète rempli par un autre onglet) — sinon un
+    // changement de statut fait ailleurs n'apparaît pas ici tant que le cache
+    // n'est pas vide, ce qui peut afficher un nombre de participants validés
+    // périmé par rapport au vrai total de votes.
+    defiParticipantsCache = window.getDefiParticipants ? await window.getDefiParticipants(activeId) : [];
     defiVotesCache = window.getDefiVotes ? await window.getDefiVotes(activeId) : [];
 
     const valides = defiParticipantsCache.filter(p => p.statut === 'valide');
