@@ -8028,6 +8028,7 @@ async function loadDefiVotesAdmin() {
       document.getElementById('dv-stat-total').textContent = '0';
       document.getElementById('dv-stat-participants').textContent = '0';
       document.getElementById('dv-stat-leader').textContent = '—';
+      document.getElementById('dv-stat-orphelins').style.display = 'none';
       return;
     }
     // Toujours recharger les participants depuis Firestore (jamais se fier à un
@@ -8047,6 +8048,20 @@ async function loadDefiVotesAdmin() {
     document.getElementById('dv-stat-total').textContent = defiVotesCache.length;
     document.getElementById('dv-stat-participants').textContent = valides.length;
     document.getElementById('dv-stat-leader').textContent = valides.length ? valides[0].nom : '—';
+
+    // Un vote "orphelin" est un vote dont le participant a été supprimé depuis
+    // (pas juste refusé) — le vote reste volontairement en base pour la
+    // traçabilité et pour empêcher un revote, mais ça vaut la peine de le
+    // signaler clairement pour éviter de croire à un bug d'affichage.
+    const idsExistants = new Set(defiParticipantsCache.map(p => p.id));
+    const nbOrphelins = defiVotesCache.filter(v => !idsExistants.has(v.participantId)).length;
+    const orphelinsEl = document.getElementById('dv-stat-orphelins');
+    if (nbOrphelins > 0) {
+      orphelinsEl.style.display = 'block';
+      orphelinsEl.textContent = `dont ${nbOrphelins} lié${nbOrphelins > 1 ? 's' : ''} à des participants supprimés`;
+    } else {
+      orphelinsEl.style.display = 'none';
+    }
 
     if (!valides.length) {
       el.innerHTML = '<p style="color:#aaa;">Aucun participant validé pour le moment.</p>';
@@ -9341,6 +9356,7 @@ function trackRecherche(terme) {
         <div style="background:#fff;padding:16px;text-align:center;">
           <div style="font-family:'Bebas Neue';font-size:26px;color:#E8622A;" id="dv-stat-total">0</div>
           <div style="font-size:9px;color:#888;letter-spacing:.1em;">VOTES TOTAUX</div>
+          <div id="dv-stat-orphelins" style="font-size:9px;color:#B8760E;margin-top:4px;display:none;"></div>
         </div>
         <div style="background:#fff;padding:16px;text-align:center;">
           <div style="font-family:'Bebas Neue';font-size:26px;color:#E8622A;" id="dv-stat-participants">0</div>
