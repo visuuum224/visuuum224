@@ -1506,6 +1506,15 @@ footer {
     return await updateDoc(doc(db, "entreprises", entrepriseId), { statut });
   };
 
+  // Statut Vitrine Premium — volontairement une fonction à part (et non incluse
+  // dans updateEntrepriseFirestore) pour qu'aucun chemin de sauvegarde de la
+  // fiche entreprise elle-même ne puisse y toucher par erreur. Seul le staff
+  // peut l'appeler (le bouton correspondant n'existe que dans le panneau admin),
+  // et la règle Firestore l'interdit de toute façon à l'entreprise elle-même.
+  window.setEntreprisePremium = async function(entrepriseId, premium) {
+    return await updateDoc(doc(db, "entreprises", entrepriseId), { premium });
+  };
+
   window.detachEntrepriseAccount = async function(entrepriseId) {
     return await updateDoc(doc(db, "entreprises", entrepriseId), { ownerUid: '' });
   };
@@ -2885,7 +2894,7 @@ function openModal(idx) {
           font-weight="bold" fill="${textM}" letter-spacing="2">${initials}</text>
       </svg>`;
 
-  document.getElementById('modalTitle').textContent = e.nom;
+  document.getElementById('modalTitle').innerHTML = e.nom + (e.premium ? ' <span title="Vitrine Premium" style="font-size:16px;color:#B8860B;">⭐</span>' : '');
   document.getElementById('modalSecteur').textContent = e.secteur;
   document.getElementById('modalDesc').textContent = e.desc;
 
@@ -3118,6 +3127,12 @@ function renderEntreprises() {
         (e.adresses||[]).some(a=>(a.ville||'').toLowerCase().includes(currentRegionAdmin.toLowerCase())));
     return matchSearch && matchFilter;
   });
+  // Mise en avant : les Vitrines Premium apparaissent en premier, sans changer
+  // l'ordre relatif des autres résultats (tri stable).
+  eFiltered = eFiltered
+    .map((e, i) => ({ e, i }))
+    .sort((a, b) => (b.e.premium ? 1 : 0) - (a.e.premium ? 1 : 0) || a.i - b.i)
+    .map(x => x.e);
   eCurrentPage = 1;
   renderEPage();
 }
@@ -3163,11 +3178,12 @@ function renderEPage() {
             font-family="Bebas Neue, Arial, sans-serif" font-size="${initials.length > 2 ? '13' : '16'}"
             font-weight="bold" fill="${textColor}" letter-spacing="1">${initials}</text>
         </svg>`;
-    return `<div class="entreprise-card" onclick="openModal(${entreprises.indexOf(e)})">
+    return `<div class="entreprise-card" onclick="openModal(${entreprises.indexOf(e)})" style="${e.premium ? 'border:1.5px solid #F0C14B;' : ''}">
       <div class="card-header">
         <div class="card-avatar" style="background:rgba(232,98,42,.08);display:flex;align-items:center;justify-content:center;overflow:hidden;">${logoHtml}</div>
         <span class="card-badge">${e.tag}</span>
       </div>
+      ${e.premium ? `<div style="font-size:9px;font-weight:700;color:#B8860B;background:rgba(240,193,75,.18);display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:20px;margin-bottom:6px;width:fit-content;">⭐ VITRINE PREMIUM</div>` : ''}
       <div class="card-name">${e.nom}</div>
       <div class="card-sector">${e.secteur}</div>
       <div class="card-desc">${e.desc}</div>
@@ -5869,16 +5885,21 @@ function renderAdminListPage(pageItems, total, page) {
     return;
   }
   listEl.innerHTML = pageItems.map((e, i) => `
-      <div id="admin-ent-${e.id}" style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:10px;border:1px solid #eee;display:flex;align-items:center;gap:12px;">
+      <div id="admin-ent-${e.id}" style="background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:10px;border:1px solid ${e.premium ? '#F0C14B' : '#eee'};display:flex;align-items:center;gap:12px;">
         <span style="font-size:22px;">${e.emoji || '🏢'}</span>
         <div style="flex:1;">
-          <div style="font-weight:700;font-size:13px;color:#111;">${e.nom}</div>
+          <div style="font-weight:700;font-size:13px;color:#111;">${e.nom} ${e.premium ? '<span title="Vitrine Premium" style="color:#B8860B;">⭐</span>' : ''}</div>
           <div style="font-size:11px;color:#888;">${e.secteur} · ${e.ville}</div>
           <div style="font-size:10px;color:#aaa;margin-top:3px;">
             ${e.dateAjout ? `📅 Créée le ${e.dateAjout}` : ''}${e.dateDemande ? ` · 📥 Demande du ${e.dateDemande}` : ''}
           </div>
         </div>
         <span style="font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(232,98,42,.1);color:#E8622A;">${e.tag || e.secteur}</span>
+        <button onclick="toggleEntreprisePremiumHandler('${e.id}', '${(e.nom||'').replace(/'/g,"\\'")}', ${!!e.premium})"
+          title="${e.premium ? 'Retirer le statut Vitrine Premium' : 'Activer la Vitrine Premium'}"
+          style="background:none;border:1.5px solid ${e.premium ? '#F0C14B' : '#ddd'};color:${e.premium ? '#B8860B' : '#999'};border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;padding:6px 10px;white-space:nowrap;transition:.15s;">
+          ⭐ ${e.premium ? 'Premium' : 'Standard'}
+        </button>
         <button onclick="editEntrepriseHandler('${e.id}')"
           title="Modifier cette entreprise"
           style="background:none;border:none;color:#ccc;cursor:pointer;font-size:15px;padding:4px 6px;transition:.15s;"
@@ -5889,6 +5910,27 @@ function renderAdminListPage(pageItems, total, page) {
           onmouseover="this.style.color='#A32D2D'" onmouseout="this.style.color='#ccc'">🗑️</button>
       </div>
   `).join('') + paginationControlsHtml('adminList', total);
+}
+
+async function toggleEntreprisePremiumHandler(id, nom, currentlyPremium) {
+  const nouveauStatut = !currentlyPremium;
+  const msg = nouveauStatut
+    ? `Activer la Vitrine Premium pour "${nom}" ?\n\nElle sera mise en avant en priorité dans l'annuaire public et affichera un badge ⭐ Premium.`
+    : `Retirer la Vitrine Premium à "${nom}" ?`;
+  if (!confirm(msg)) return;
+
+  try {
+    await window.setEntreprisePremium(id, nouveauStatut);
+    const idxCache = (window._adminEntCache || []).findIndex(e => e.id === id);
+    if (idxCache !== -1) window._adminEntCache[idxCache].premium = nouveauStatut;
+    const idxPub = entreprises.findIndex(e => e.id === id);
+    if (idxPub !== -1) entreprises[idxPub].premium = nouveauStatut;
+    renderEntreprises();
+    logStaffAction(nouveauStatut ? 'activation' : 'désactivation', 'vitrine-premium', nom);
+    registerPaginatedList('adminList', window._adminEntCache || [], renderAdminListPage);
+  } catch(err) {
+    alert('Erreur lors de la mise à jour du statut Premium. Réessaie.');
+  }
 }
 
 function filterAdminList() {
