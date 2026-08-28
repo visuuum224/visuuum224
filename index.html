@@ -4891,7 +4891,7 @@ async function adminAddEntreprise() {
 
   // Upload logo si fichier sélectionné
   const fileInput = document.getElementById('a-logo-file');
-  if (fileInput.files.length > 0 && window.uploadLogoToStorage) {
+  if (fileInput.files.length > 0) {
     try {
       btn.textContent = '⏳ Upload du logo...';
       statusEl.style.display = 'block';
