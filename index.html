@@ -4801,6 +4801,7 @@ function editEntrepriseHandler(id) {
   document.getElementById('a-nom').value = e.nom || '';
   document.getElementById('a-responsable').value = e.responsable || '';
   document.getElementById('a-secteur').value = e.secteur || '';
+  updateTagOptionsForSecteur(); // repeuple le menu Tag pour ce secteur AVANT de tenter d'y sélectionner une valeur
   document.getElementById('a-tag').value = e.tag || '';
   document.getElementById('a-ville').value = e.ville || '';
   document.getElementById('a-wa').value = e.wa || '';
@@ -4838,7 +4839,7 @@ function cancelEditEntreprise() {
   if (document.getElementById('a-region-nat')) document.getElementById('a-region-nat').value = '';
   if (document.getElementById('a-region-admin')) document.getElementById('a-region-admin').value = '';
   document.getElementById('a-secteur').value = '';
-  document.getElementById('a-tag').value = '';
+  updateTagOptionsForSecteur(); // remet le menu Tag sur son placeholder, plutôt que de laisser l'ancien tag affiché
   document.getElementById('a-logo-preview').style.display = 'none';
   document.getElementById('a-logo-file').value = '';
   resetAdresses();
@@ -4965,6 +4966,7 @@ async function adminAddEntreprise() {
       if(document.getElementById('a-region-admin')) document.getElementById('a-region-admin').value='';
       resetAdresses();
       document.getElementById('a-secteur').value = '';
+      updateTagOptionsForSecteur(); // remet le menu Tag sur son placeholder après création réussie
 
       setTimeout(() => { msg.style.display = 'none'; }, 4000);
     }
