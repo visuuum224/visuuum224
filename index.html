@@ -1889,6 +1889,25 @@ footer {
   };
 
   // Valide une demande : crée le compte entreprise + la fiche entreprise + met à jour la demande
+  // Déduit un tag court à partir du secteur complet choisi dans le formulaire
+  // public (qui ne fait choisir qu'un secteur, jamais un tag précis). Priorité
+  // à une correspondance exacte dans la taxonomie centralisée (VISUUUM_SECTEURS
+  // / VISUUUM_SECTEURS_TAGS, exposée sur window par le script principal) — on
+  // prend alors le PREMIER des 2 tags du secteur comme valeur par défaut
+  // (ex: "Agriculture & Élevage" → "Agriculture"). Si jamais aucune
+  // correspondance n'est trouvée (ancienne donnée, ou secteur personnalisé),
+  // on retombe sur un découpage du texte, adapté au séparateur "&" utilisé
+  // par la nomenclature actuelle (l'ancien séparateur "/" appartenait à une
+  // version révolue des libellés de secteur).
+  function deriveTagFromSecteur(secteurLabel) {
+    const secteurs = window.VISUUUM_SECTEURS || [];
+    const tags = window.VISUUUM_SECTEURS_TAGS || [];
+    const idx = secteurs.indexOf(secteurLabel);
+    if (idx !== -1 && tags[idx] && tags[idx][0]) return tags[idx][0];
+    const premierMorceau = (secteurLabel || '').split(' & ')[0];
+    return premierMorceau.replace(/^\S+\s+/, '').trim() || secteurLabel || '';
+  }
+
   window.validerInscriptionFirestore = async function(inscriptionId, inscriptionData) {
     let ownerUid = null;
     if (inscriptionData.email) {
@@ -1898,7 +1917,7 @@ footer {
       nom: inscriptionData.nom,
       responsable: inscriptionData.responsable,
       secteur: inscriptionData.secteur,
-      tag: (inscriptionData.secteur || '').split(' / ')[0] || inscriptionData.secteur,
+      tag: deriveTagFromSecteur(inscriptionData.secteur),
       ville: inscriptionData.ville,
       regionNat: inscriptionData.regionNat || '',
       regionAdmin: inscriptionData.regionAdmin || '',
@@ -2666,14 +2685,29 @@ const VISUUUM_SECTEURS = [
   "🌾 Agriculture & Agroalimentaire", "🛍️ Commerce & Vente", "🧵 Artisanat & Mode",
   "🏗️ BTP & Immobilier", "🍽️ Restauration & Food", "💊 Santé & Beauté",
   "💻 Tech & Numérique", "🏦 Finance & Banque", "⛏️ Mines & Ressources",
-  "⚡ Énergie", "🚚 Transport & Logistique", "🎓 Éducation & Formation",
+  "⚡ Énergie & Eau", "🚚 Transport & Logistique", "🎓 Éducation & Formation",
   "🏛️ Institution & Gouvernement", "🤝 ONG & Association"
 ];
-const VISUUUM_SECTEURS_TAGS = ["Agriculture","Commerce","Artisanat","BTP","Restauration","Santé","Tech","Finance","Mines","Énergie","Transport","Éducation","Institution","ONG"];
+// Chaque secteur a 2 tags courts sélectionnables (ex: une ferme d'élevage
+// choisit "Élevage", un producteur choisit "Agriculture" — tous deux
+// appartiennent au même secteur "Agriculture & Agroalimentaire"). 14 secteurs
+// x 2 = 28 tags. Aligné position par position avec VISUUUM_SECTEURS ci-dessus.
+const VISUUUM_SECTEURS_TAGS = [
+  ["Agriculture","Élevage"], ["Commerce","Vente"], ["Artisanat","Mode"],
+  ["BTP","Immobilier"], ["Restauration","Food"], ["Santé","Beauté"],
+  ["Tech","Numérique"], ["Finance","Banque"], ["Mines","Ressources"],
+  ["Énergie","Eau"], ["Transport","Logistique"], ["Éducation","Formation"],
+  ["Institution","Gouvernement"], ["ONG","Association"]
+];
+// Exposées sur window pour être accessibles depuis le module Firebase (script
+// séparé), notamment pour dériver correctement un tag court à partir d'un
+// secteur complet lors de la validation d'une demande d'inscription.
+window.VISUUUM_SECTEURS = VISUUUM_SECTEURS;
+window.VISUUUM_SECTEURS_TAGS = VISUUUM_SECTEURS_TAGS;
 const VISUUUM_REGIONS_NAT = ["Guinée Maritime","Fouta Djallon","Haute Guinée","Guinée Forestière"];
 const VISUUUM_REGIONS_ADMIN = ["Conakry","Kindia","Boké","Labé","Mamou","Kankan","Faranah","Siguiri","N'Zérékoré","Beyla"];
 
-// Remplit dynamiquement les 4 listes déroulantes "Secteur" du site (filtre
+// Remplit dynamiquement les listes déroulantes "Secteur" du site (filtre
 // public Nimba'Rep, formulaire d'inscription public, formulaire admin
 // "Ajouter une entreprise" x2) à partir de VISUUUM_SECTEURS ci-dessus — c'est
 // désormais la SEULE liste à modifier pour ajouter/retirer un secteur ; le
@@ -2681,21 +2715,50 @@ const VISUUUM_REGIONS_ADMIN = ["Conakry","Kindia","Boké","Labé","Mamou","Kanka
 // remplacé au chargement de la page.
 function populateSecteurSelects() {
   const labelOptions = VISUUUM_SECTEURS.map(s => `<option value="${s}">${s}</option>`).join('');
-  const tagOptions = VISUUUM_SECTEURS.map((s, i) => `<option value="${VISUUUM_SECTEURS_TAGS[i]}">${s}</option>`).join('');
+
+  // Filtre public : les 28 tags, regroupés par secteur (optgroup), pour un
+  // filtrage plus précis que par grand secteur seul.
+  const filterOptionsGrouped = VISUUUM_SECTEURS.map((s, i) =>
+    `<optgroup label="${s}">` +
+      VISUUUM_SECTEURS_TAGS[i].map(t => `<option value="${t}">${t}</option>`).join('') +
+    `</optgroup>`
+  ).join('');
 
   const filterSel = document.getElementById('filterSecteur');
-  if (filterSel) filterSel.innerHTML = '<option value="">🏷️ Tous les secteurs</option>' + tagOptions;
+  if (filterSel) filterSel.innerHTML = '<option value="">🏷️ Tous les secteurs</option>' + filterOptionsGrouped;
 
   const fSel = document.getElementById('f-secteur');
   if (fSel) fSel.innerHTML = '<option value="">Choisir ...</option>' + labelOptions;
 
   const aSecteurSel = document.getElementById('a-secteur');
-  if (aSecteurSel) aSecteurSel.innerHTML = '<option value="">Choisir...</option>' + labelOptions;
+  if (aSecteurSel) {
+    aSecteurSel.innerHTML = '<option value="">Choisir...</option>' + labelOptions;
+    aSecteurSel.onchange = updateTagOptionsForSecteur;
+  }
 
-  const aTagSel = document.getElementById('a-tag');
-  if (aTagSel) aTagSel.innerHTML = tagOptions;
+  // Tag admin : seulement les 2 tags du secteur actuellement choisi (vide tant
+  // qu'aucun secteur n'est sélectionné).
+  updateTagOptionsForSecteur();
 }
 document.addEventListener('DOMContentLoaded', populateSecteurSelects);
+
+// Repeuple #a-tag avec uniquement les 2 tags du secteur choisi dans #a-secteur.
+// Appelée au changement de secteur, et une fois au chargement initial.
+function updateTagOptionsForSecteur() {
+  const aTagSel = document.getElementById('a-tag');
+  const aSecteurSel = document.getElementById('a-secteur');
+  if (!aTagSel || !aSecteurSel) return;
+  const idx = VISUUUM_SECTEURS.indexOf(aSecteurSel.value);
+  const previousValue = aTagSel.value;
+  if (idx === -1) {
+    aTagSel.innerHTML = '<option value="">Choisir un secteur d\'abord...</option>';
+    return;
+  }
+  aTagSel.innerHTML = VISUUUM_SECTEURS_TAGS[idx].map(t => `<option value="${t}">${t}</option>`).join('');
+  // Conserve la sélection précédente si elle est encore valide (utile en mode édition)
+  if (VISUUUM_SECTEURS_TAGS[idx].includes(previousValue)) aTagSel.value = previousValue;
+}
+
 
 // ── DATA ──────────────────────────────────────────────────────────────────────
 const partenaires = [
@@ -4923,7 +4986,7 @@ let importData = [];
 async function downloadTemplate() {
   // Source unique : voir VISUUUM_SECTEURS / VISUUUM_REGIONS_* en tête de fichier
   const SECTEURS = VISUUUM_SECTEURS;
-  const TAGS = VISUUUM_SECTEURS_TAGS;
+  const TAGS = VISUUUM_SECTEURS_TAGS.flat(); // 28 tags à plat pour la liste déroulante Excel
   const REGIONS_NAT = VISUUUM_REGIONS_NAT;
   const REGIONS_ADMIN = VISUUUM_REGIONS_ADMIN;
 
