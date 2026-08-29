@@ -5070,6 +5070,36 @@ function handleFileImport(input) {
   if (file) processImportFile(file);
 }
 
+// Retire le suffixe " *" (marqueur visuel "champ obligatoire" dans les en-têtes
+// du modèle Excel) des clés d'un objet-ligne — sans ce nettoyage, une ligne
+// lue depuis le modèle officiel a des clés littéralement nommées "nom *",
+// "secteur *", etc., qui ne correspondent jamais à "nom"/"secteur" attendus
+// par le code de normalisation plus bas, et TOUTES les lignes sont donc
+// silencieusement ignorées quel que soit leur contenu.
+function stripRequiredMarker(row) {
+  const clean = {};
+  Object.keys(row).forEach(k => {
+    clean[k.replace(/\s*\*\s*$/, '').trim()] = row[k];
+  });
+  return clean;
+}
+
+// Sélectionne la bonne feuille de données dans un classeur Excel importé —
+// jamais "la première feuille" par position, car les modèles générés par
+// downloadTemplate()/downloadProduitTemplate() placent délibérément le Guide
+// explicatif en première position, suivi de la vraie feuille de saisie.
+// Lire aveuglément wb.SheetNames[0] revenait donc systématiquement à lire le
+// Guide (sans colonne "nom"), faisant croire à un fichier vide alors que les
+// données étaient bien présentes juste à côté.
+function findImportDataSheet(wb, preferredName) {
+  if (wb.Sheets[preferredName]) return wb.Sheets[preferredName];
+  const byImport = wb.SheetNames.find(n => n.toLowerCase().includes('import'));
+  if (byImport) return wb.Sheets[byImport];
+  const nonGuide = wb.SheetNames.find(n => !n.toLowerCase().includes('guide'));
+  if (nonGuide) return wb.Sheets[nonGuide];
+  return wb.Sheets[wb.SheetNames[0]];
+}
+
 function processImportFile(file) {
   const ext = file.name.split('.').pop().toLowerCase();
   const reader = new FileReader();
@@ -5092,9 +5122,11 @@ function processImportFile(file) {
       // Parse Excel with SheetJS
       const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
+      const ws = findImportDataSheet(wb, "📥 Import Entreprises");
       rows = XLSX.utils.sheet_to_json(ws);
     }
+
+    rows = rows.map(stripRequiredMarker);
 
     // Normaliser les données
     importData = rows.filter(r => r.nom || r['Nom de l\'entreprise']).map(r => ({
@@ -5799,9 +5831,11 @@ function processProduitFile(file) {
     } else {
       const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
+      const ws = findImportDataSheet(wb, "📥 Import Produits");
       rows = XLSX.utils.sheet_to_json(ws);
     }
+
+    rows = rows.map(stripRequiredMarker);
 
     importProduitData = rows.filter(r => r.nom).map(r => {
       const cat = r.categorie || 'produits';
@@ -5922,6 +5956,64 @@ async function confirmProduitImport() {
     barEl.style.width = '0%';
     barEl.style.background = '#E8622A';
   }, 4000);
+}
+
+// Migre vers Firestore les entreprises encore purement codées en dur dans le
+// fichier (jamais créées comme vrai document Firestore) — elles deviennent
+// alors gérables depuis ce panneau admin comme n'importe quelle autre fiche
+// (modification, suppression, statut Premium...). Une entreprise déjà réelle
+// (matched par nom lors du chargement Firebase, voir refreshEntreprises) a
+// déjà un champ .id et n'est donc jamais touchée deux fois.
+async function migrateSeedEntreprisesHandler() {
+  const seedItems = entreprises.filter(e => !e.id);
+  if (seedItems.length === 0) {
+    alert("Aucune entreprise de démonstration à migrer — toutes ont déjà une vraie fiche Firestore.");
+    return;
+  }
+  const confirmed = confirm(
+    seedItems.length + " entreprise(s) de démonstration codées en dur dans le site vont être créées " +
+    "comme de vraies fiches Firestore, gérables depuis ce panneau admin.\n\n" +
+    "Les logos intégrés en base64 ne seront PAS repris (format incohérent avec le reste du site, qui " +
+    "utilise des liens Imgbb) — un badge emoji s'affichera à la place, comme pour la plupart des fiches " +
+    "déjà existantes.\n\nContinuer ?"
+  );
+  if (!confirmed) return;
+
+  let success = 0, failed = 0;
+  for (const e of seedItems) {
+    try {
+      const data = {
+        nom: e.nom || '',
+        responsable: e.responsable || '',
+        secteur: e.secteur || '',
+        tag: e.tag || '',
+        ville: e.ville || '',
+        wa: e.wa || '',
+        email: e.email || '',
+        siteWeb: e.siteWeb || '',
+        desc: e.desc || '',
+        emoji: e.emoji || '🏢',
+        regionNat: e.regionNat || '',
+        regionAdmin: e.regionAdmin || '',
+        lat: (typeof e.lat === 'number') ? e.lat : null,
+        lng: (typeof e.lng === 'number') ? e.lng : null,
+        logo: '', // volontairement vidé — voir commentaire ci-dessus
+        statut: 'actif',
+        ownerUid: '',
+        premium: false,
+        dateAjout: new Date().toLocaleDateString('fr-FR')
+      };
+      const docRef = await window.addEntrepriseToFirestore(data);
+      e.id = docRef.id; // évite une double migration si le staff relance l'action
+      success++;
+    } catch (err) {
+      failed++;
+    }
+  }
+  alert("Migration terminée : " + success + " fiche(s) créée(s) dans Firestore" + (failed ? (", " + failed + " échec(s)") : "") + ".");
+  logStaffAction('migration', 'entreprises-demo', success + " fiches de démonstration migrées vers Firestore");
+  renderEntreprises();
+  await loadAdminList();
 }
 
 async function loadAdminList() {
@@ -8921,7 +9013,13 @@ function trackRecherche(terme) {
 
     <!-- Tab LIST -->
     <div id="panelList" style="padding:28px; display:none;">
-      <div style="font-size:14px; font-weight:700; color:#111; margin-bottom:16px;">Entreprises enregistrées</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <div style="font-size:14px; font-weight:700; color:#111;">Entreprises enregistrées</div>
+        <button onclick="migrateSeedEntreprisesHandler()"
+          style="padding:8px 14px;background:#fff;border:1.5px solid #E8622A;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;color:#E8622A;cursor:pointer;white-space:nowrap;">
+          ⚡ Intégrer les fiches de démo dans Firestore
+        </button>
+      </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:end;">
         <div style="flex:1;min-width:160px;">
           <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">RECHERCHER</label>
