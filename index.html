@@ -6312,7 +6312,8 @@ async function loadAdminList() {
     // même que le mot-clé restait visible dans le champ de recherche.
     const hasActiveFilter = document.getElementById('al-search')?.value
       || document.getElementById('al-date-from')?.value
-      || document.getElementById('al-date-to')?.value;
+      || document.getElementById('al-date-to')?.value
+      || document.getElementById('al-premium')?.value;
     if (hasActiveFilter) {
       filterAdminList();
     } else {
@@ -6382,6 +6383,7 @@ function filterAdminList() {
   const kw = (document.getElementById('al-search').value || '').toLowerCase().trim();
   const from = document.getElementById('al-date-from').value;
   const to = document.getElementById('al-date-to').value;
+  const premiumFilter = document.getElementById('al-premium')?.value || '';
   const data = window._adminEntCache || [];
 
   const filtered = data.filter(e => {
@@ -6391,7 +6393,10 @@ function filterAdminList() {
       (e.ville||'').toLowerCase().includes(kw) ||
       (e.tag||'').toLowerCase().includes(kw);
     const matchDate = dateInRange(e.dateAjout, from, to) || dateInRange(e.dateDemande, from, to);
-    return matchKw && matchDate;
+    const matchPremium = !premiumFilter ||
+      (premiumFilter === 'premium' && !!e.premium) ||
+      (premiumFilter === 'standard' && !e.premium);
+    return matchKw && matchDate && matchPremium;
   });
   registerPaginatedList('adminList', filtered, renderAdminListPage);
 }
@@ -6400,6 +6405,7 @@ function resetAdminListFilter() {
   document.getElementById('al-search').value = '';
   document.getElementById('al-date-from').value = '';
   document.getElementById('al-date-to').value = '';
+  if (document.getElementById('al-premium')) document.getElementById('al-premium').value = '';
   registerPaginatedList('adminList', window._adminEntCache || [], renderAdminListPage);
 }
 
@@ -9341,6 +9347,15 @@ function trackRecherche(terme) {
           <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">AU</label>
           <input id="al-date-to" type="date" onchange="filterAdminList()"
             style="padding:9px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:9px;font-weight:700;letter-spacing:.1em;color:#aaa;display:block;margin-bottom:4px;">STATUT</label>
+          <select id="al-premium" onchange="filterAdminList()"
+            style="padding:9px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;outline:none;background:#fff;cursor:pointer;">
+            <option value="">Toutes</option>
+            <option value="premium">⭐ Premium uniquement</option>
+            <option value="standard">Standard uniquement</option>
+          </select>
         </div>
         <button onclick="resetAdminListFilter()" style="padding:9px 14px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:12px;color:#888;cursor:pointer;">✕ Réinitialiser</button>
       </div>
