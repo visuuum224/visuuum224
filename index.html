@@ -6131,12 +6131,18 @@ function stripLeadingSymbols(s) {
 // problèmes distinctes couvertes :
 // 1) Une demi-paire de substitution UTF-16 isolée (donnée tronquée en cours
 //    de route) — invalide dans l'absolu, ne peut s'afficher nulle part.
-// 2) Un caractère de la Zone d'Usage Privé Unicode (U+E000–U+F8FF) — celui-ci
-//    EST valide techniquement, mais n'a de sens dans aucune police standard.
-//    Il apparaît ici typiquement quand un outil a calculé la valeur
-//    intermédiaire d'un codepoint étendu (codepoint - 0x10000, l'étape de
-//    calcul d'une paire de substitution) sans jamais finir la conversion en
-//    paire — par exemple 0x1F3DB (🏛) mal converti donne 0xF3DB tout seul.
+// 2) La signature exacte du bug identifié sur ce site : un outil a calculé
+//    "codepoint − 0x10000" (l'étape intermédiaire du calcul d'une paire de
+//    substitution) sans jamais finir la conversion en vraie paire. Pour tout
+//    emoji usuel (🏛️ U+1F3DB, 🧑 U+1F9D1, etc., tous dans la plage courante
+//    U+1F000–U+1FFFF), le résultat de ce calcul incomplet tombe TOUJOURS dans
+//    la plage U+E000–U+FFFF — parfois dans la Zone d'Usage Privé (aucun sens
+//    dans une police), parfois dans un autre bloc bien réel comme les
+//    idéogrammes de compatibilité CJK (0x1F9D1 − 0x10000 = 0xF9D1, qui EST un
+//    caractère chinois existant, mais totalement hors de propos ici). Comme
+//    le champ "emoji" ne devrait jamais contenir un idéogramme ou un
+//    caractère de contrôle par ailleurs, toute la plage U+E000–U+FFFF y est
+//    donc considérée comme le signe de cette même corruption.
 function hasLoneSurrogate(s) {
   if (!s) return false;
   for (let i = 0; i < s.length; i++) {
@@ -6147,8 +6153,10 @@ function hasLoneSurrogate(s) {
       i++; // paire valide, on saute le bas de paire déjà vérifié
     } else if (code >= 0xDC00 && code <= 0xDFFF) {
       return true; // bas de paire jamais précédé d'un haut de paire
-    } else if (code >= 0xE000 && code <= 0xF8FF) {
-      return true; // Zone d'Usage Privé — jamais un vrai emoji valide ici
+    } else if (code >= 0xE000 && code <= 0xFFFF && !(code >= 0xFE00 && code <= 0xFE0F)) {
+      return true; // signature du calcul de paire jamais terminé (voir ci-dessus)
+      // (U+FE00–FE0F exclu : ce sont les "sélecteurs de variation" légitimes,
+      // utilisés par de nombreux emoji corrects comme 🏛️ ou 🛍️ eux-mêmes)
     }
   }
   return false;
