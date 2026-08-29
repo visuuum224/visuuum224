@@ -2236,7 +2236,7 @@ footer {
           color:#444;background:var(--surface);appearance:none;cursor:pointer;outline:none;">
         <option value="">🌍 Les origines</option>
         <option value="local">🇬🇳 Local</option>
-        <option value="importe">✈️ Importé</option>
+        <option value="importé">✈️ Importé</option>
       </select>
       <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:#888;">▾</span>
     </div>
@@ -2686,18 +2686,20 @@ const VISUUUM_SECTEURS = [
   "🏗️ BTP & Immobilier", "🍽️ Restauration & Food", "💊 Santé & Beauté",
   "💻 Tech & Numérique", "🏦 Finance & Banque", "⛏️ Mines & Ressources",
   "⚡ Énergie & Eau", "🚚 Transport & Logistique", "🎓 Éducation & Formation",
-  "🏛️ Institution & Gouvernement", "🤝 ONG & Association"
+  "🏛️ Institution & Gouvernement", "🤝 ONG & Association",
+  "🌐 Diplomatie & Organisations Internationales"
 ];
 // Chaque secteur a 2 tags courts sélectionnables (ex: une ferme d'élevage
 // choisit "Élevage", un producteur choisit "Agriculture" — tous deux
-// appartiennent au même secteur "Agriculture & Agroalimentaire"). 14 secteurs
-// x 2 = 28 tags. Aligné position par position avec VISUUUM_SECTEURS ci-dessus.
+// appartiennent au même secteur "Agriculture & Agroalimentaire"). 15 secteurs
+// x 2 = 30 tags. Aligné position par position avec VISUUUM_SECTEURS ci-dessus.
 const VISUUUM_SECTEURS_TAGS = [
   ["Agriculture","Élevage"], ["Commerce","Vente"], ["Artisanat","Mode"],
   ["BTP","Immobilier"], ["Restauration","Food"], ["Santé","Beauté"],
   ["Tech","Numérique"], ["Finance","Banque"], ["Mines","Ressources"],
   ["Énergie","Eau"], ["Transport","Logistique"], ["Éducation","Formation"],
-  ["Institution","Gouvernement"], ["ONG","Association"]
+  ["Institution","Gouvernement"], ["ONG","Association"],
+  ["Ambassade","Organisation"]
 ];
 // Exposées sur window pour être accessibles depuis le module Firebase (script
 // séparé), notamment pour dériver correctement un tag court à partir d'un
@@ -3573,24 +3575,33 @@ function getProduitsFiltres() {
   return allItems.filter(p => {
     // Déduire les régions du produit
     const regs = getProduitRegions(p);
+    // Un produit/artisanat sans origine renseignée est traité par défaut comme
+    // local (comportement historique). Un SERVICE, lui, n'a délibérément pas de
+    // notion d'origine — hasOrigine l'exclut proprement des filtres et de la
+    // recherche par mot-clé, plutôt que de lui coller "local" par défaut comme
+    // c'était le cas avant.
+    const hasOrigine = p.categorie !== 'services';
     const pOrigine = (p.origine || 'local').toLowerCase();
 
     // Recherche texte — matche aussi le badge d'origine (Local/Importé) en
     // plus du nom/vendeur/description/région, pour que taper "local" dans la
     // barre de recherche trouve tous les produits badgés "Local", pas
     // seulement ceux qui ont littéralement ce mot écrit dans leur titre.
+    // Les services (sans notion d'origine) ne sont jamais concernés.
     const matchSearch = !search ||
       (p.nom||'').toLowerCase().includes(search) ||
       (p.vendeur||'').toLowerCase().includes(search) ||
       (p.desc||'').toLowerCase().includes(search) ||
       (p.region||'').toLowerCase().includes(search) ||
-      (search.includes('local') && pOrigine !== 'importé') ||
-      (search.includes('import') && pOrigine === 'importé');
+      (search.includes('local') && hasOrigine && pOrigine !== 'importé') ||
+      (search.includes('import') && hasOrigine && pOrigine === 'importé');
 
-    // Filtre origine
-    const matchOrigine = !origine ||
+    // Filtre origine — un service ne matche jamais ce filtre, qu'il soit
+    // réglé sur "Local" ou "Importé", puisqu'il n'a simplement pas cette
+    // caractéristique.
+    const matchOrigine = !origine || (hasOrigine && (
       (origine === 'local'   && pOrigine !== 'importé') ||
-      (origine === 'importé' && pOrigine === 'importé');
+      (origine === 'importé' && pOrigine === 'importé')));
 
     // Filtre région naturelle
     const matchRegNat = !regNat || regs.nat.includes(regNat);
@@ -3622,7 +3633,7 @@ function renderPPage() {
 
   document.getElementById('produitsGrid').innerHTML = pageItems.map(p => {
     const waClean = (p.wa||'').replace(/[^0-9+]/g,'');
-    const origineBadge = `<span class="produit-origine ${(p.origine||'local')==='importé'?'importé':'local'}">${(p.origine||'local')==='importé'?'✈️ Importé':'🇬🇳 Local'}</span>`;
+    const origineBadge = p.categorie === 'services' ? '' : `<span class="produit-origine ${(p.origine||'local')==='importé'?'importé':'local'}">${(p.origine||'local')==='importé'?'✈️ Importé':'🇬🇳 Local'}</span>`;
     const vendeurEnt = entreprises.find(e => e.nom === p.vendeur);
     const regionValue = p.region || (vendeurEnt ? vendeurEnt.ville : '');
     const regionBadge = regionValue ? `<span class="produit-region">📍 ${regionValue}</span>` : '';
@@ -5312,6 +5323,16 @@ function removeProductPhoto3() {
   document.getElementById('p-photo-preview3').style.display = 'none';
 }
 
+// Affiche/masque le champ "Origine" selon la catégorie choisie — un service
+// n'a pas de notion de local/importé, contrairement à un produit ou de
+// l'artisanat.
+function toggleOrigineFieldVisibility(categorieSelectId, origineWrapId) {
+  const catSel = document.getElementById(categorieSelectId);
+  const wrap = document.getElementById(origineWrapId);
+  if (!catSel || !wrap) return;
+  wrap.style.display = (catSel.value === 'services') ? 'none' : '';
+}
+
 async function adminAddProduit() {
   const editingId = document.getElementById('p-editing-id').value;
   const nom      = document.getElementById('p-nom').value.trim();
@@ -5385,7 +5406,9 @@ async function adminAddProduit() {
   const waFinal = wa || (entreprise ? entreprise.wa : '');
 
   const desc      = document.getElementById('p-desc').value.trim();
-  const origine   = document.getElementById('p-origine')?.value || 'local';
+  // Un service n'a pas de notion d'origine (local/importé) — champ vidé
+  // délibérément, quelle que soit la valeur restée dans le menu caché.
+  const origine   = categorie === 'services' ? '' : (document.getElementById('p-origine')?.value || 'local');
   const regionNat = document.getElementById('p-region-nat')?.value || '';
   const data = { nom, vendeur, categorie, prix, region, regionNat, wa: waFinal, emoji, desc, origine, image, image2, image3 };
 
@@ -5470,6 +5493,7 @@ function editAdminProduitHandler(id) {
   document.getElementById('p-nom').value = p.nom || '';
   document.getElementById('p-vendeur').value = p.vendeur || '';
   document.getElementById('p-categorie').value = p.categorie || 'produits';
+  toggleOrigineFieldVisibility('p-categorie', 'p-origine-wrap');
   document.getElementById('p-prix').value = p.prix || '';
   document.getElementById('p-region').value = p.region || '';
   document.getElementById('p-wa').value = p.wa || '';
@@ -5512,6 +5536,7 @@ function cancelEditProduit() {
   if (document.getElementById('p-region-nat')) document.getElementById('p-region-nat').value = '';
   document.getElementById('p-vendeur').value = '';
   document.getElementById('p-categorie').value = 'produits';
+  toggleOrigineFieldVisibility('p-categorie', 'p-origine-wrap');
   removeProductPhoto();
   removeProductPhoto2();
   removeProductPhoto3();
@@ -5671,9 +5696,17 @@ function openProduitModal(tab, idx) {
     thumbsEl.innerHTML = '';
   }
 
-  // Badge origine (Local / Importé) — cohérent avec les cartes de la grille
-  const isImporte = (p.origine || 'local') === 'importé';
-  document.getElementById('pm-badge').textContent = isImporte ? '✈️ Importé' : '🇬🇳 Produit local';
+  // Badge origine (Local / Importé) — cohérent avec les cartes de la grille.
+  // Un service n'a pas de notion d'origine : le badge est simplement masqué,
+  // plutôt que d'afficher "Local" par défaut de façon trompeuse.
+  const pmBadgeEl = document.getElementById('pm-badge');
+  if (p.categorie === 'services') {
+    pmBadgeEl.style.display = 'none';
+  } else {
+    pmBadgeEl.style.display = '';
+    const isImporte = (p.origine || 'local') === 'importé';
+    pmBadgeEl.textContent = isImporte ? '✈️ Importé' : '🇬🇳 Produit local';
+  }
 
   // Région
   const modalVendeurEnt = entreprises.find(e => e.nom === p.vendeur);
@@ -5809,20 +5842,25 @@ function processProduitFile(file) {
       rows = XLSX.utils.sheet_to_json(ws);
     }
 
-    importProduitData = rows.filter(r => r.nom).map(r => ({
+    importProduitData = rows.filter(r => r.nom).map(r => {
+      const cat = r.categorie || 'produits';
+      return {
       nom:       r.nom || '',
       vendeur:   r.vendeur || '',
-      categorie: r.categorie || 'produits',
+      categorie: cat,
       prix:      r.prix || '',
       region:    r.region || '',
       wa:        r.wa || '',
-      origine:   r.origine || r['Origine'] || 'local',
+      // Un service n'a pas de notion d'origine (local/importé) — même règle
+      // que dans les formulaires admin et espace entreprise.
+      origine:   cat === 'services' ? '' : (r.origine || r['Origine'] || 'local'),
       region_nat: r.region_nat || r['region_nat'] || r['Région naturelle'] || '',
       regionNat:  r.region_nat || r['region_nat'] || r['Région naturelle'] || '',
       desc:      r.desc || r['Description'] || '',
       emoji:     r.emoji || '📦',
       image:     r.image || '',
-    })).filter(r => r.nom);
+    };
+    }).filter(r => r.nom);
 
     showProduitImportPreview();
   };
@@ -6730,14 +6768,26 @@ async function loadEntMarcheTab(uid) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;">
           <div>
             <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">CATÉGORIE</label>
-            <input id="mprod-categorie" type="text" placeholder="Ex : Alimentation"
-              style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
+            <select id="mprod-categorie" onchange="toggleOrigineFieldVisibility('mprod-categorie', 'mprod-origine-wrap')"
+              style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;background:#fff;">
+              <option value="produits">Produits locaux</option>
+              <option value="services">Services</option>
+              <option value="artisanat">Artisanat</option>
+            </select>
           </div>
           <div>
             <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">PRIX</label>
             <input id="mprod-prix" type="text" placeholder="Ex : 50 000 GNF"
               style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;">
           </div>
+        </div>
+        <div id="mprod-origine-wrap" style="margin-bottom:12px;">
+          <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">ORIGINE DU PRODUIT</label>
+          <select id="mprod-origine"
+            style="width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:6px;font-family:'Syne';font-size:13px;outline:none;background:#fff;">
+            <option value="local">🇬🇳 Produit local</option>
+            <option value="importé">✈️ Produit importé</option>
+          </select>
         </div>
         <div style="margin-bottom:12px;">
           <label style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#888;display:block;margin-bottom:6px;">DESCRIPTION</label>
@@ -6786,7 +6836,10 @@ function toggleAddProduitForm() {
   form.style.display = isOpen ? 'none' : 'block';
   if (!isOpen) {
     window._editingProduitId = null;
-    ['mprod-nom','mprod-categorie','mprod-prix','mprod-desc'].forEach(id => document.getElementById(id).value = '');
+    ['mprod-nom','mprod-prix','mprod-desc'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('mprod-categorie').value = 'produits';
+    if (document.getElementById('mprod-origine')) document.getElementById('mprod-origine').value = 'local';
+    toggleOrigineFieldVisibility('mprod-categorie', 'mprod-origine-wrap');
     document.getElementById('mprod-file1').value = '';
     document.getElementById('mprod-file2').value = '';
     document.getElementById('mprod-slot1').innerHTML = '📷';
@@ -6804,7 +6857,14 @@ function editMyProduitHandler(id) {
   form.style.display = 'block';
 
   document.getElementById('mprod-nom').value = p.nom || '';
-  document.getElementById('mprod-categorie').value = p.categorie || '';
+  // Repli : les produits ajoutés avant ce correctif avaient une catégorie en
+  // texte libre (ex: "Alimentation") qui ne correspond à aucune des 3 options
+  // actuelles — on retombe alors sur "produits" plutôt que de laisser un menu
+  // sur une valeur invalide.
+  const catValue = ['produits','services','artisanat'].includes(p.categorie) ? p.categorie : 'produits';
+  document.getElementById('mprod-categorie').value = catValue;
+  toggleOrigineFieldVisibility('mprod-categorie', 'mprod-origine-wrap');
+  if (document.getElementById('mprod-origine')) document.getElementById('mprod-origine').value = p.origine || 'local';
   document.getElementById('mprod-prix').value = p.prix || '';
   document.getElementById('mprod-desc').value = p.desc || '';
   document.getElementById('mprod-file1').value = '';
@@ -6858,6 +6918,10 @@ async function saveMyProduitHandler() {
     nom,
     categorie: document.getElementById('mprod-categorie').value.trim(),
     prix: document.getElementById('mprod-prix').value.trim(),
+    // Un service n'a pas de notion d'origine (local/importé) — champ vidé
+    // délibérément, quelle que soit la valeur restée dans le menu caché.
+    origine: document.getElementById('mprod-categorie').value.trim() === 'services'
+      ? '' : (document.getElementById('mprod-origine')?.value || 'local'),
     desc: document.getElementById('mprod-desc').value.trim(),
     image, image2,
     vendeur: ent ? ent.nom : '',
@@ -8944,7 +9008,7 @@ function trackRecherche(terme) {
         </div>
         <div>
           <label style="font-size:10px; font-weight:700; letter-spacing:.12em; color:#888; display:block; margin-bottom:6px;">CATÉGORIE *</label>
-          <select id="p-categorie"
+          <select id="p-categorie" onchange="toggleOrigineFieldVisibility('p-categorie', 'p-origine-wrap')"
             style="width:100%; padding:11px 14px; border:1.5px solid #ddd; border-radius:6px; font-family:'Syne'; font-size:13px; outline:none; background:#fff;">
             <option value="produits">Produits locaux</option>
             <option value="services">Services</option>
@@ -8980,7 +9044,7 @@ function trackRecherche(terme) {
       </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
-        <div>
+        <div id="p-origine-wrap">
           <label style="font-size:10px; font-weight:700; letter-spacing:.12em; color:#888; display:block; margin-bottom:6px;">ORIGINE DU PRODUIT</label>
           <select id="p-origine" style="width:100%; padding:11px 14px; border:1.5px solid #ddd; border-radius:6px; font-family:'Syne'; font-size:13px; outline:none; background:#fff;">
             <option value="local">🇬🇳 Produit local</option>
