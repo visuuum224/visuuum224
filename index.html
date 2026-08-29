@@ -4924,6 +4924,7 @@ async function adminAddEntreprise() {
       // Ajoute aussi à l'array local
       entreprises.unshift(data);
       renderEntreprises();
+      animateCounter('admin-count-entreprises', entreprises.length, '+');
 
       const msg = document.getElementById('adminMsg');
       msg.style.display = 'block';
@@ -5056,6 +5057,100 @@ async function downloadTemplate() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// Nettoie un nom de secteur pour en faire un nom d'onglet Excel valide : max 31
+// caractères, aucun des symboles interdits par Excel ( : \ / ? * [ ] ), et
+// garanti unique dans le classeur (au cas où deux secteurs tronqueraient sur
+// le même texte).
+function sanitizeSheetName(name, usedNames) {
+  let clean = (name || 'Secteur non renseigné').replace(/[:\\/?*[\]]/g, '').trim();
+  clean = clean.substring(0, 31) || 'Secteur';
+  let unique = clean;
+  let i = 2;
+  while (usedNames.has(unique)) {
+    unique = clean.substring(0, 28) + '_' + i;
+    i++;
+  }
+  usedNames.add(unique);
+  return unique;
+}
+
+// Exporte la totalité des entreprises/structures actuellement dans Firestore
+// vers un classeur Excel, une feuille par secteur (regroupe donc aussi bien
+// les entreprises classiques que les institutions, ONG, ambassades... puisque
+// ce sont juste des secteurs parmi les autres). Toujours une lecture fraîche
+// de Firestore au moment du clic, pour ne jamais exporter des données pouvant
+// être périmées par rapport à ce qu'un autre membre du staff vient de changer.
+async function downloadAllEntreprisesExcel(btnEl) {
+  const originalLabel = btnEl ? btnEl.textContent : '';
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Génération...'; }
+  try {
+    const data = await window.getEntreprisesFromFirestore();
+    if (!data.length) {
+      alert("Aucune entreprise trouvée dans Firestore à exporter.");
+      return;
+    }
+
+    const bySecteur = {};
+    data.forEach(e => {
+      const sec = e.secteur || 'Secteur non renseigné';
+      (bySecteur[sec] = bySecteur[sec] || []).push(e);
+    });
+
+    // Ordre : d'abord les 15 secteurs officiels dans leur ordre habituel,
+    // puis tout secteur imprévu (ancienne donnée, faute de frappe...) à la fin
+    // plutôt que de le perdre silencieusement.
+    const ordered = [
+      ...VISUUUM_SECTEURS.filter(s => bySecteur[s]),
+      ...Object.keys(bySecteur).filter(s => !VISUUUM_SECTEURS.includes(s))
+    ];
+
+    const wb = new ExcelJS.Workbook();
+    const usedNames = new Set();
+
+    ordered.forEach(secteur => {
+      const sheetName = sanitizeSheetName(secteur, usedNames);
+      const ws = wb.addWorksheet(sheetName);
+      ws.columns = [
+        {header:"Nom", key:"nom", width:30}, {header:"Responsable", key:"responsable", width:22},
+        {header:"Tag", key:"tag", width:14}, {header:"Ville", key:"ville", width:18},
+        {header:"Région naturelle", key:"regionNat", width:18}, {header:"Région admin.", key:"regionAdmin", width:16},
+        {header:"WhatsApp", key:"wa", width:18}, {header:"Email", key:"email", width:24},
+        {header:"Site web", key:"siteWeb", width:26}, {header:"Statut", key:"statut", width:12},
+        {header:"Premium", key:"premium", width:10}, {header:"Date d'ajout", key:"dateAjout", width:14}
+      ];
+      ws.getRow(1).font = { bold: true, color: {argb:'FFFFFFFF'} };
+      ws.getRow(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF111111'} };
+      ws.getRow(1).height = 20;
+
+      bySecteur[secteur].forEach(e => {
+        ws.addRow({
+          nom: e.nom || '', responsable: e.responsable || '', tag: e.tag || '',
+          ville: e.ville || '', regionNat: e.regionNat || '', regionAdmin: e.regionAdmin || '',
+          wa: e.wa || '', email: e.email || '', siteWeb: e.siteWeb || '',
+          statut: e.statut === 'suspendu' ? 'Suspendu' : 'Actif',
+          premium: e.premium ? 'Oui' : 'Non',
+          dateAjout: e.dateAjout || ''
+        });
+      });
+    });
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `visuuum224_entreprises_${new Date().toISOString().slice(0,10)}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch(err) {
+    alert("Erreur lors de la génération du fichier : " + err.message);
+  } finally {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = originalLabel; }
+  }
 }
 
 function handleDrop(event) {
@@ -5200,9 +5295,25 @@ function cancelImport() {
   document.getElementById('importFile').value = '';
 }
 
+// Normalise une valeur avant comparaison, pour ne jamais déclencher une "mise
+// à jour" pour une simple différence de formatage sans intérêt (null vs '',
+// espaces en trop, NaN vs vide...). Les tableaux (ex: produits) sont comparés
+// via leur sérialisation JSON.
+function normalizeForCompare(v) {
+  if (v === undefined || v === null) return '';
+  if (typeof v === 'number' && isNaN(v)) return '';
+  if (Array.isArray(v)) return v.length ? JSON.stringify(v) : '';
+  return String(v).trim();
+}
+
+// Champs comparés pour décider si une entreprise déjà existante (même nom)
+// doit être mise à jour lors d'un import — "nom" n'y figure pas puisque c'est
+// justement la clé de correspondance.
+const IMPORT_MERGE_FIELDS = ['responsable','secteur','tag','ville','wa','email','siteWeb','desc','produits','regionNat','regionAdmin','emoji','lat','lng'];
+
 async function confirmImport() {
   if (!importData.length) return;
-  if (!window.addEntrepriseToFirestore) {
+  if (!window.addEntrepriseToFirestore || !window.getEntreprisesFromFirestore) {
     alert('Firebase non connecté. Vérifiez votre connexion.');
     return;
   }
@@ -5215,9 +5326,16 @@ async function confirmImport() {
 
   document.getElementById('importPreview').style.display = 'none';
   progressEl.style.display = 'block';
+  statusEl.textContent = 'Vérification des entreprises déjà existantes...';
 
-  let success = 0;
-  let errors  = 0;
+  // Fusion par nom, jamais de doublon : on récupère l'état actuel de Firestore
+  // AVANT de commencer, et on cherche pour chaque ligne importée une entreprise
+  // du même nom (comparaison insensible à la casse et aux espaces superflus).
+  const existing = await window.getEntreprisesFromFirestore();
+  const byName = {};
+  existing.forEach(ex => { byName[(ex.nom || '').trim().toLowerCase()] = ex; });
+
+  let created = 0, updated = 0, unchanged = 0, errors = 0;
 
   for (let i = 0; i < total; i++) {
     const e = importData[i];
@@ -5225,14 +5343,39 @@ async function confirmImport() {
     counterEl.textContent = `${i+1} / ${total}`;
     barEl.style.width = ((i+1)/total*100) + '%';
 
+    const key = (e.nom || '').trim().toLowerCase();
+    const match = byName[key];
+
     try {
-      await window.addEntrepriseToFirestore({
-        ...e,
-        dateAjout: new Date().toLocaleDateString('fr-FR')
-      });
-      // Ajouter à l'array local
-      entreprises.unshift(e);
-      success++;
+      if (match) {
+        // Entreprise déjà existante (même nom) — on ne réécrit QUE les champs
+        // qui diffèrent réellement, et on ne touche pas du tout à Firestore
+        // si rien n'a changé.
+        const diff = {};
+        IMPORT_MERGE_FIELDS.forEach(f => {
+          if (normalizeForCompare(e[f]) !== normalizeForCompare(match[f])) diff[f] = e[f];
+        });
+        if (Object.keys(diff).length > 0) {
+          await window.updateEntrepriseFirestore(match.id, diff);
+          Object.assign(match, diff); // reflète la MAJ dans l'array local aussi
+          updated++;
+        } else {
+          unchanged++;
+        }
+      } else {
+        // Vraiment nouvelle — jamais rencontrée, ni dans Firestore ni dans ce
+        // même fichier importé (byName est mis à jour au fil de la boucle,
+        // donc deux lignes du même nom DANS le fichier ne créent pas non plus
+        // deux doublons — la seconde vient mettre à jour la première).
+        const docRef = await window.addEntrepriseToFirestore({
+          ...e,
+          dateAjout: new Date().toLocaleDateString('fr-FR')
+        });
+        const withId = { ...e, id: docRef.id };
+        byName[key] = withId; // empêche un doublon si le fichier répète ce nom
+        entreprises.unshift(withId);
+        created++;
+      }
     } catch(err) {
       console.warn('Erreur pour', e.nom, err);
       errors++;
@@ -5244,21 +5387,26 @@ async function confirmImport() {
   // Résultat final
   barEl.style.width = '100%';
   barEl.style.background = errors > 0 ? '#E8622A' : '#27500A';
-  statusEl.textContent = `✅ Import terminé ! ${success} entreprise(s) ajoutée(s)${errors > 0 ? ` · ${errors} erreur(s)` : ''}`;
+  statusEl.textContent = `✅ Import terminé ! ${created} créée(s) · ${updated} mise(s) à jour · ${unchanged} déjà à jour${errors > 0 ? ` · ${errors} erreur(s)` : ''}`;
   counterEl.textContent = '';
 
   // Refresh annuaire
   eCurrentPage = 1;
   renderEntreprises();
+  // Le compteur "ENTREPRENEURS" en haut du panneau n'est calculé qu'une seule
+  // fois au chargement de la page — sans ce rappel explicite, il resterait
+  // figé sur son ancienne valeur après un import réussi, malgré les nouvelles
+  // fiches bien réellement créées dans Firestore et visibles dans la Liste.
+  animateCounter('admin-count-entreprises', entreprises.length, '+');
 
-  // Reset après 4 secondes
+  // Reset après 5 secondes (un peu plus long, le message est plus détaillé)
   setTimeout(() => {
     progressEl.style.display = 'none';
     document.getElementById('importFile').value = '';
     importData = [];
     barEl.style.width = '0%';
     barEl.style.background = '#E8622A';
-  }, 4000);
+  }, 5000);
 }
 
 
@@ -5964,6 +6112,61 @@ async function confirmProduitImport() {
 // (modification, suppression, statut Premium...). Une entreprise déjà réelle
 // (matched par nom lors du chargement Firebase, voir refreshEntreprises) a
 // déjà un champ .id et n'est donc jamais touchée deux fois.
+// Retire les symboles/emoji en tête d'un texte (secteur), pour comparer deux
+// libellés de secteur en ignorant l'emoji exact utilisé — utile pour repérer
+// une entreprise dont le secteur correspond bien à l'un des 15 officiels mais
+// dont l'emoji stocké diffère (mauvais caractère, ou emoji manquant) suite à
+// une saisie manuelle ou un import Excel où le caractère n'a pas été copié
+// à l'identique.
+function stripLeadingSymbols(s) {
+  return (s || '').replace(/^[^\p{L}]+/u, '').trim().toLowerCase();
+}
+
+// Repère, parmi toutes les entreprises de Firestore, celles dont le secteur
+// correspond textuellement à l'un des 15 secteurs officiels mais avec un
+// emoji différent ou absent — et propose de les aligner sur le libellé exact
+// (emoji inclus) utilisé partout ailleurs sur le site (filtre, formulaires,
+// export Excel...). Ne touche jamais au champ "tag", uniquement "secteur".
+async function normalizeSecteursHandler() {
+  const data = await window.getEntreprisesFromFirestore();
+  const canonicalByStripped = {};
+  VISUUUM_SECTEURS.forEach(s => { canonicalByStripped[stripLeadingSymbols(s)] = s; });
+
+  const toFix = data.filter(e => {
+    const canon = canonicalByStripped[stripLeadingSymbols(e.secteur)];
+    return canon && canon !== e.secteur;
+  }).map(e => ({ ...e, _canon: canonicalByStripped[stripLeadingSymbols(e.secteur)] }));
+
+  if (toFix.length === 0) {
+    alert("Aucune entreprise à corriger — tous les secteurs correspondent déjà exactement au libellé officiel.");
+    return;
+  }
+
+  const apercu = toFix.slice(0, 5).map(e => `• ${e.nom} : "${e.secteur}" → "${e._canon}"`).join('\n');
+  const confirmed = confirm(
+    toFix.length + " entreprise(s) ont un secteur reconnaissable mais mal orthographié (emoji différent ou manquant) :\n\n" +
+    apercu + (toFix.length > 5 ? `\n… et ${toFix.length - 5} autre(s)` : '') +
+    "\n\nAligner ces secteurs sur le libellé officiel exact ?"
+  );
+  if (!confirmed) return;
+
+  let fixed = 0, errors = 0;
+  for (const e of toFix) {
+    try {
+      await window.updateEntrepriseFirestore(e.id, { secteur: e._canon });
+      const localMatch = entreprises.find(x => x.id === e.id);
+      if (localMatch) localMatch.secteur = e._canon;
+      fixed++;
+    } catch (err) {
+      errors++;
+    }
+  }
+  alert("Correction terminée : " + fixed + " secteur(s) aligné(s)" + (errors ? (", " + errors + " échec(s)") : "") + ".");
+  logStaffAction('correction', 'secteurs', fixed + " secteurs alignés sur le libellé officiel");
+  renderEntreprises();
+  await loadAdminList();
+}
+
 async function migrateSeedEntreprisesHandler() {
   const seedItems = entreprises.filter(e => !e.id);
   if (seedItems.length === 0) {
@@ -6013,6 +6216,7 @@ async function migrateSeedEntreprisesHandler() {
   alert("Migration terminée : " + success + " fiche(s) créée(s) dans Firestore" + (failed ? (", " + failed + " échec(s)") : "") + ".");
   logStaffAction('migration', 'entreprises-demo', success + " fiches de démonstration migrées vers Firestore");
   renderEntreprises();
+  animateCounter('admin-count-entreprises', entreprises.length, '+');
   await loadAdminList();
 }
 
@@ -8989,7 +9193,7 @@ function trackRecherche(terme) {
       </div>
 
       <div id="importPreview" style="display:none;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
           <div style="font-size:13px;font-weight:700;color:#111;">
             Aperçu — <span id="importCount" style="color:#E8622A;">0</span> entreprise(s)
           </div>
@@ -8997,6 +9201,9 @@ function trackRecherche(terme) {
             <button onclick="cancelImport()" style="padding:7px 14px;background:#fff;color:#888;border:1px solid #ddd;border-radius:6px;font-family:'Syne';font-size:11px;cursor:pointer;">Annuler</button>
             <button onclick="confirmImport()" style="padding:7px 14px;background:#E8622A;color:#fff;border:none;border-radius:6px;font-family:'Syne';font-size:12px;font-weight:700;cursor:pointer;">✦ Importer</button>
           </div>
+        </div>
+        <div style="font-size:11px;color:#888;margin-bottom:10px;">
+          🔀 Fusion par nom : une entreprise déjà existante (même nom) sera mise à jour uniquement si ses informations ont changé — jamais dupliquée.
         </div>
         <div id="importTable" style="max-height:200px;overflow-y:auto;border-radius:8px;border:1px solid #eee;"></div>
       </div>
@@ -9015,10 +9222,20 @@ function trackRecherche(terme) {
     <div id="panelList" style="padding:28px; display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
         <div style="font-size:14px; font-weight:700; color:#111;">Entreprises enregistrées</div>
-        <button onclick="migrateSeedEntreprisesHandler()"
-          style="padding:8px 14px;background:#fff;border:1.5px solid #E8622A;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;color:#E8622A;cursor:pointer;white-space:nowrap;">
-          ⚡ Intégrer les fiches de démo dans Firestore
-        </button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button onclick="downloadAllEntreprisesExcel(this)"
+            style="padding:8px 14px;background:#185FA5;border:none;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;color:#fff;cursor:pointer;white-space:nowrap;">
+            ⬇ Télécharger (une feuille par secteur)
+          </button>
+          <button onclick="normalizeSecteursHandler()"
+            style="padding:8px 14px;background:#fff;border:1.5px solid #185FA5;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;color:#185FA5;cursor:pointer;white-space:nowrap;">
+            🔧 Corriger les secteurs mal orthographiés
+          </button>
+          <button onclick="migrateSeedEntreprisesHandler()"
+            style="padding:8px 14px;background:#fff;border:1.5px solid #E8622A;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;color:#E8622A;cursor:pointer;white-space:nowrap;">
+            ⚡ Intégrer les fiches de démo dans Firestore
+          </button>
+        </div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:end;">
         <div style="flex:1;min-width:160px;">
