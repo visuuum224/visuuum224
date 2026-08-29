@@ -4595,7 +4595,7 @@ async function checkAdmin() {
         role: window._staffRole
       };
       document.getElementById('adminLogin').style.display = 'none';
-      document.getElementById('adminDash').style.display = 'block';
+      document.getElementById('adminDash').style.display = 'flex';
       applyRolePermissions();
       // Animate stats — calculées à partir des données réelles / de la taxonomie
       // (VISUUUM_SECTEURS / VISUUUM_REGIONS_*), plus le nombre de pays de la diaspora
@@ -4724,12 +4724,13 @@ function switchTab(tab) {
     if (!btn) return;
 
     if (ENTREPRISES_SUBTABS.includes(t) || DEFI_SUBTABS.includes(t)) {
-      // Style "liste verticale" pour les sous-éléments d'un menu déroulant
-      btn.style.background = t === tab ? 'rgba(232,98,42,.06)' : '#fff';
+      // Sous-élément indenté du menu vertical
+      btn.style.background = t === tab ? 'rgba(232,98,42,.08)' : 'transparent';
       btn.style.color = t === tab ? '#E8622A' : '#555';
     } else {
-      // Style "onglet horizontal" classique pour les menus de premier niveau
-      btn.style.borderBottom = t === tab ? '2px solid #E8622A' : '2px solid transparent';
+      // Élément de premier niveau du menu vertical — surlignage par bordure gauche
+      btn.style.borderLeft = t === tab ? '3px solid #E8622A' : '3px solid transparent';
+      btn.style.background = t === tab ? 'rgba(232,98,42,.06)' : 'transparent';
       btn.style.color = t === tab ? '#E8622A' : '#888';
     }
   });
@@ -4737,19 +4738,18 @@ function switchTab(tab) {
   // Le bouton parent "Entreprises" reste actif visuellement si un de ses sous-menus est ouvert
   const parentBtn = document.getElementById('tab-entreprises-menu');
   if (parentBtn) {
-    parentBtn.style.borderBottom = isSubtab ? '2px solid #E8622A' : '2px solid transparent';
+    parentBtn.style.borderLeft = isSubtab ? '3px solid #E8622A' : '3px solid transparent';
+    parentBtn.style.background = isSubtab ? 'rgba(232,98,42,.06)' : 'transparent';
     parentBtn.style.color = isSubtab ? '#E8622A' : '#888';
   }
 
   // Idem pour le bouton parent "🏆 Défi-V224"
   const defiParentBtn = document.getElementById('tab-defi-menu');
   if (defiParentBtn) {
-    defiParentBtn.style.borderBottom = isDefiSubtab ? '2px solid #E8622A' : '2px solid transparent';
+    defiParentBtn.style.borderLeft = isDefiSubtab ? '3px solid #E8622A' : '3px solid transparent';
+    defiParentBtn.style.background = isDefiSubtab ? 'rgba(232,98,42,.06)' : 'transparent';
     defiParentBtn.style.color = isDefiSubtab ? '#E8622A' : '#888';
   }
-
-  if (isSubtab) closeEntreprisesMenu();
-  if (isDefiSubtab) closeDefiMenu();
 
   if (tab === 'list') loadAdminList();
   if (tab === 'produit') { populateVendeurSelect(); loadAdminProduitsList(); }
@@ -4763,45 +4763,6 @@ function switchTab(tab) {
   if (tab === 'defiVotes') loadDefiVotesAdmin();
   if (tab === 'defiPrix') loadDefiPrixAdminList();
 }
-
-function toggleEntreprisesMenu() {
-  const dropdown = document.getElementById('entreprises-dropdown');
-  const isOpen = dropdown.style.display === 'block';
-  closeDefiMenu();
-  dropdown.style.display = isOpen ? 'none' : 'block';
-}
-
-function closeEntreprisesMenu() {
-  const dropdown = document.getElementById('entreprises-dropdown');
-  if (dropdown) dropdown.style.display = 'none';
-}
-
-function toggleDefiMenu() {
-  const dropdown = document.getElementById('defi-dropdown');
-  const isOpen = dropdown.style.display === 'block';
-  closeEntreprisesMenu();
-  dropdown.style.display = isOpen ? 'none' : 'block';
-}
-
-function closeDefiMenu() {
-  const dropdown = document.getElementById('defi-dropdown');
-  if (dropdown) dropdown.style.display = 'none';
-}
-
-// Ferme le menu déroulant si on clique ailleurs
-document.addEventListener('click', (e) => {
-  const dropdown = document.getElementById('entreprises-dropdown');
-  const menuBtn = document.getElementById('tab-entreprises-menu');
-  if (dropdown && dropdown.style.display === 'block' && !dropdown.contains(e.target) && e.target !== menuBtn) {
-    closeEntreprisesMenu();
-  }
-  const defiDropdown = document.getElementById('defi-dropdown');
-  const defiMenuBtn = document.getElementById('tab-defi-menu');
-  if (defiDropdown && defiDropdown.style.display === 'block' && !defiDropdown.contains(e.target) && e.target !== defiMenuBtn) {
-    closeDefiMenu();
-  }
-});
-
 
 function editEntrepriseHandler(id) {
   const e = (window._adminEntCache || []).find(ee => ee.id === id);
@@ -4840,7 +4801,7 @@ function editEntrepriseHandler(id) {
   document.getElementById('a-cancel-edit').style.display = 'inline-block';
   document.getElementById('a-submit-btn').textContent = '✦ Enregistrer les modifications';
 
-  const dashEl = document.getElementById('adminDash');
+  const dashEl = document.getElementById('adminContent');
   if (dashEl) dashEl.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -5525,7 +5486,7 @@ function editAdminProduitHandler(id) {
   document.getElementById('p-cancel-edit').style.display = 'inline-block';
   document.getElementById('p-submit-btn').textContent = '✦ Enregistrer les modifications';
 
-  const dashEl = document.getElementById('adminDash');
+  const dashEl = document.getElementById('adminContent');
   if (dashEl) dashEl.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -7065,7 +7026,7 @@ function editPartenaireHandler(id) {
   }
   document.getElementById('pt-save-btn').textContent = '✦ Enregistrer les modifications';
   document.getElementById('pt-save-btn').disabled = false;
-  const dashEl = document.getElementById('adminDash');
+  const dashEl = document.getElementById('adminContent');
   if (dashEl) dashEl.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -7969,7 +7930,7 @@ function editDefiMancheHandler(id) {
   document.getElementById('dm-statut').value = m.statutVote || 'inscriptions';
   document.getElementById('dm-lien-fb').value = m.lienFacebook || '';
   document.getElementById('dm-save-btn').textContent = '✦ Enregistrer les modifications';
-  const dashEl = document.getElementById('adminDash');
+  const dashEl = document.getElementById('adminContent');
   if (dashEl) dashEl.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -8445,7 +8406,7 @@ function editDefiPrixHandler(id) {
   });
 
   document.getElementById('dp-save-btn').textContent = '✦ Enregistrer les modifications';
-  const dashEl = document.getElementById('adminDash');
+  const dashEl = document.getElementById('adminContent');
   if (dashEl) dashEl.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -8619,10 +8580,10 @@ function trackRecherche(terme) {
   </div>
 
   <!-- DASHBOARD -->
-  <div id="adminDash" style="display:none; background:#F5F4F0; border-radius:16px; width:100%; max-width:780px; max-height:90vh; overflow-y:auto;">
+  <div id="adminDash" style="display:none; background:#F5F4F0; border-radius:16px; width:100%; max-width:1280px; max-height:90vh; overflow:hidden; flex-direction:column;">
 
     <!-- Header -->
-    <div style="background:#111; padding:20px 28px; border-radius:16px 16px 0 0; display:flex; align-items:center; justify-content:space-between;">
+    <div style="background:#111; padding:20px 28px; border-radius:16px 16px 0 0; display:flex; align-items:center; justify-content:space-between; flex-shrink:0;">
       <div>
         <div style="font-family:'Bebas Neue'; font-size:26px; color:#E8622A; letter-spacing:2px;">VISUUUM 224</div>
         <div id="adminPanelTitle" style="font-size:11px; color:rgba(255,255,255,.4); letter-spacing:.12em;">Panneau Administrateur</div>
@@ -8635,7 +8596,7 @@ function trackRecherche(terme) {
     </div>
 
     <!-- Stats -->
-    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:#e5e5e5; border-bottom:1px solid #ddd;">
+    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:#e5e5e5; border-bottom:1px solid #ddd; flex-shrink:0;">
       <div style="background:#fff; padding:16px 12px; text-align:center;">
         <div style="font-family:'Bebas Neue'; font-size:28px; color:#E8622A;" id="admin-count-entreprises">0</div>
         <div style="font-size:9px; color:#888; letter-spacing:.1em; margin-top:2px;">ENTREPRENEURS</div>
@@ -8658,82 +8619,80 @@ function trackRecherche(terme) {
       </div>
     </div>
 
-    <!-- Menu / Tabs -->
-    <div style="display:flex; gap:0; border-bottom:1px solid #ddd; background:#fafafa; position:relative;">
+    <!-- Corps : menu vertical à gauche + contenu à droite -->
+    <div style="display:flex; flex:1; min-height:0; overflow:hidden;">
 
-      <!-- Menu déroulant "Entreprises" (regroupe Création / Liste / Produits / Partenaires) -->
-      <div style="flex:1; position:relative;">
-        <button class="admin-tab active" id="tab-entreprises-menu" onclick="toggleEntreprisesMenu()"
-          style="width:100%; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid #E8622A; background:#fff; color:#E8622A;">
-          🏢 Entreprises ▾
-        </button>
-        <div id="entreprises-dropdown" style="display:none; position:absolute; top:100%; left:0; min-width:220px; background:#fff; border:1px solid #ddd; border-radius:0 0 8px 8px; box-shadow:0 8px 20px rgba(0,0,0,.12); z-index:50;">
-          <button class="admin-subtab active" id="tab-add" onclick="switchTab('add')"
-            style="width:100%; padding:12px 16px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; background:#fff; color:#E8622A; text-align:left;">
-            ➕ Création
-          </button>
-          <button class="admin-subtab" id="tab-list" onclick="switchTab('list')"
-            style="width:100%; padding:12px 16px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; background:#fff; color:#555; text-align:left; border-top:1px solid #f0f0f0;">
-            📋 Liste
-          </button>
-          <button class="admin-subtab" id="tab-produit" onclick="switchTab('produit')"
-            style="width:100%; padding:12px 16px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; background:#fff; color:#555; text-align:left; border-top:1px solid #f0f0f0;">
-            🛍️ Produits
-          </button>
-          <button class="admin-subtab" id="tab-partenaires" onclick="switchTab('partenaires')"
-            style="width:100%; padding:12px 16px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; background:#fff; color:#555; text-align:left; border-top:1px solid #f0f0f0; border-radius:0 0 8px 8px;">
-            🤝 Partenaires
-          </button>
+      <!-- Menu vertical -->
+      <div style="width:230px; flex-shrink:0; background:#fafafa; border-right:1px solid #ddd; overflow-y:auto; padding:10px 0;">
+
+        <!-- Groupe "Entreprises" (Création / Liste / Produit ou Service / Partenaires) -->
+        <div style="padding:10px 18px 6px; font-size:10px; font-weight:700; letter-spacing:.1em; color:#aaa;" id="tab-entreprises-menu">
+          🏢 ENTREPRISES
         </div>
+        <button class="admin-subtab active" id="tab-add" onclick="switchTab('add')"
+          style="width:100%; padding:10px 18px 10px 32px; font-family:'Syne'; font-size:12.5px; font-weight:600; border:none; cursor:pointer; background:rgba(232,98,42,.08); color:#E8622A; text-align:left; display:block;">
+          ➕ Création
+        </button>
+        <button class="admin-subtab" id="tab-list" onclick="switchTab('list')"
+          style="width:100%; padding:10px 18px 10px 32px; font-family:'Syne'; font-size:12.5px; font-weight:600; border:none; cursor:pointer; background:transparent; color:#555; text-align:left; display:block;">
+          📋 Liste
+        </button>
+        <button class="admin-subtab" id="tab-produit" onclick="switchTab('produit')"
+          style="width:100%; padding:10px 18px 10px 32px; font-family:'Syne'; font-size:12.5px; font-weight:600; border:none; cursor:pointer; background:transparent; color:#555; text-align:left; display:block;">
+          🛍️ Produit ou Service
+        </button>
+        <button class="admin-subtab" id="tab-partenaires" onclick="switchTab('partenaires')"
+          style="width:100%; padding:10px 18px 10px 32px; font-family:'Syne'; font-size:12.5px; font-weight:600; border:none; cursor:pointer; background:transparent; color:#555; text-align:left; display:block;">
+          🤝 Partenaires
+        </button>
+
+        <!-- Groupe "🏆 Défi-V224" (Manche / Participants / Votes / Cadeaux) -->
+        <div style="padding:16px 18px 6px; font-size:10px; font-weight:700; letter-spacing:.1em; color:#aaa;" id="tab-defi-menu">
+          🏆 DÉFI-V224
+        </div>
+        <button class="admin-subtab" id="tab-defiManche" onclick="switchTab('defiManche')"
+          style="width:100%; padding:10px 18px 10px 32px; font-family:'Syne'; font-size:12.5px; font-weight:600; border:none; cursor:pointer; background:transparent; color:#555; text-align:left; display:block;">
+          ⚙️ Manche
+        </button>
+        <button class="admin-subtab" id="tab-defiParticipants" onclick="switchTab('defiParticipants')"
+          style="width:100%; padding:10px 18px 10px 32px; font-family:'Syne'; font-size:12.5px; font-weight:600; border:none; cursor:pointer; background:transparent; color:#555; text-align:left; display:block; position:relative;">
+          🎬 Participants <span id="defi-participants-badge" style="display:none; background:#E24B4A; color:#fff; font-size:9px; font-weight:700; padding:1px 6px; border-radius:10px; margin-left:4px;">0</span>
+        </button>
+        <button class="admin-subtab" id="tab-defiVotes" onclick="switchTab('defiVotes')"
+          style="width:100%; padding:10px 18px 10px 32px; font-family:'Syne'; font-size:12.5px; font-weight:600; border:none; cursor:pointer; background:transparent; color:#555; text-align:left; display:block;">
+          🗳️ Votes
+        </button>
+        <button class="admin-subtab" id="tab-defiPrix" onclick="switchTab('defiPrix')"
+          style="width:100%; padding:10px 18px 10px 32px; font-family:'Syne'; font-size:12.5px; font-weight:600; border:none; cursor:pointer; background:transparent; color:#555; text-align:left; display:block;">
+          🎁 Cadeaux
+        </button>
+
+        <!-- Sections de premier niveau -->
+        <div style="height:1px; background:#e5e5e5; margin:14px 18px;"></div>
+
+        <button class="admin-tab" id="tab-demandes" onclick="switchTab('demandes')"
+          style="width:100%; padding:12px 18px; font-family:'Syne'; font-size:13px; font-weight:600; border:none; border-left:3px solid transparent; cursor:pointer; background:transparent; color:#888; text-align:left; display:block; position:relative;">
+          📥 Demandes <span id="demandes-badge" style="display:none; background:#E24B4A; color:#fff; font-size:9px; font-weight:700; padding:1px 6px; border-radius:10px; margin-left:4px;">0</span>
+        </button>
+
+        <button class="admin-tab" id="tab-comptes" onclick="switchTab('comptes')"
+          style="width:100%; padding:12px 18px; font-family:'Syne'; font-size:13px; font-weight:600; border:none; border-left:3px solid transparent; cursor:pointer; background:transparent; color:#888; text-align:left; display:block;">
+          👥 Comptes
+        </button>
+
+        <button class="admin-tab" id="tab-historique" onclick="switchTab('historique')"
+          style="width:100%; padding:12px 18px; font-family:'Syne'; font-size:13px; font-weight:600; border:none; border-left:3px solid transparent; cursor:pointer; background:transparent; color:#888; text-align:left; display:block;">
+          📜 Historique
+        </button>
+
+        <button class="admin-tab" id="tab-video" onclick="switchTab('video')"
+          style="width:100%; padding:12px 18px; font-family:'Syne'; font-size:13px; font-weight:600; border:none; border-left:3px solid transparent; cursor:pointer; background:transparent; color:#888; text-align:left; display:block;">
+          🎥 Vidéo
+        </button>
       </div>
 
-      <!-- Menu déroulant "🏆 Défi-V224" (Manche / Participants / Votes / Cadeaux) -->
-      <div style="flex:1; position:relative;">
-        <button class="admin-tab" id="tab-defi-menu" onclick="toggleDefiMenu()"
-          style="width:100%; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
-          🏆 Défi-V224 ▾
-        </button>
-        <div id="defi-dropdown" style="display:none; position:absolute; top:100%; left:0; min-width:200px; background:#fff; border:1px solid #ddd; border-radius:0 0 8px 8px; box-shadow:0 8px 20px rgba(0,0,0,.12); z-index:50;">
-          <button class="admin-subtab" id="tab-defiManche" onclick="switchTab('defiManche')"
-            style="width:100%; padding:12px 16px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; background:#fff; color:#555; text-align:left;">
-            ⚙️ Manche
-          </button>
-          <button class="admin-subtab" id="tab-defiParticipants" onclick="switchTab('defiParticipants')"
-            style="width:100%; padding:12px 16px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; background:#fff; color:#555; text-align:left; border-top:1px solid #f0f0f0; position:relative;">
-            🎬 Participants <span id="defi-participants-badge" style="display:none; background:#E24B4A; color:#fff; font-size:9px; font-weight:700; padding:1px 6px; border-radius:10px; margin-left:4px;">0</span>
-          </button>
-          <button class="admin-subtab" id="tab-defiVotes" onclick="switchTab('defiVotes')"
-            style="width:100%; padding:12px 16px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; background:#fff; color:#555; text-align:left; border-top:1px solid #f0f0f0;">
-            🗳️ Votes
-          </button>
-          <button class="admin-subtab" id="tab-defiPrix" onclick="switchTab('defiPrix')"
-            style="width:100%; padding:12px 16px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; background:#fff; color:#555; text-align:left; border-top:1px solid #f0f0f0; border-radius:0 0 8px 8px;">
-            🎁 Cadeaux
-          </button>
-        </div>
-      </div>
-
-      <button class="admin-tab" id="tab-demandes" onclick="switchTab('demandes')"
-        style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888; position:relative;">
-        📥 Demandes <span id="demandes-badge" style="display:none; background:#E24B4A; color:#fff; font-size:9px; font-weight:700; padding:1px 6px; border-radius:10px; margin-left:4px;">0</span>
-      </button>
-
-      <button class="admin-tab" id="tab-comptes" onclick="switchTab('comptes')"
-        style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
-        👥 Comptes
-      </button>
-
-      <button class="admin-tab" id="tab-historique" onclick="switchTab('historique')"
-        style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
-        📜 Historique
-      </button>
-
-      <button class="admin-tab" id="tab-video" onclick="switchTab('video')"
-        style="flex:1; padding:14px; font-family:'Syne'; font-size:12px; font-weight:600; border:none; cursor:pointer; border-bottom:2px solid transparent; background:#fff; color:#888;">
-        🎥 Vidéo
-      </button>
-    </div>
-
+      <!-- Zone de contenu -->
+      <div id="adminContent" style="flex:1; min-width:0; overflow-y:auto;">
     <!-- Tab ADD -->
     <div id="panelAdd" style="padding:28px;">
       <input type="hidden" id="a-editing-id" value="">
@@ -9627,6 +9586,8 @@ function trackRecherche(terme) {
       </div>
     </div>
 
+      </div><!-- /#adminContent -->
+    </div><!-- /corps (menu + contenu) -->
   </div>
 
   <!-- ── ESPACE ENTREPRISE (connexion non-admin) ── -->
