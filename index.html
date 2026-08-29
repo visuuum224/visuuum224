@@ -6127,12 +6127,16 @@ function stripLeadingSymbols(s) {
 // emoji différent ou absent — et propose de les aligner sur le libellé exact
 // (emoji inclus) utilisé partout ailleurs sur le site (filtre, formulaires,
 // export Excel...). Ne touche jamais au champ "tag", uniquement "secteur".
-// Détecte un caractère Unicode invalide (demi-paire de substitution isolée)
-// dans une chaîne — ce n'est jamais un problème de police manquante, c'est un
-// caractère qui ne PEUT s'afficher correctement dans AUCUNE police, sur AUCUN
-// appareil. Se produit généralement suite à une troncature accidentelle d'un
-// emoji composé de plusieurs unités de code UTF-16 (import Excel, copier-
-// coller, manipulation de chaîne qui coupe au mauvais endroit).
+// Détecte un caractère "emoji" invalide OU inutilisable — deux familles de
+// problèmes distinctes couvertes :
+// 1) Une demi-paire de substitution UTF-16 isolée (donnée tronquée en cours
+//    de route) — invalide dans l'absolu, ne peut s'afficher nulle part.
+// 2) Un caractère de la Zone d'Usage Privé Unicode (U+E000–U+F8FF) — celui-ci
+//    EST valide techniquement, mais n'a de sens dans aucune police standard.
+//    Il apparaît ici typiquement quand un outil a calculé la valeur
+//    intermédiaire d'un codepoint étendu (codepoint - 0x10000, l'étape de
+//    calcul d'une paire de substitution) sans jamais finir la conversion en
+//    paire — par exemple 0x1F3DB (🏛) mal converti donne 0xF3DB tout seul.
 function hasLoneSurrogate(s) {
   if (!s) return false;
   for (let i = 0; i < s.length; i++) {
@@ -6143,6 +6147,8 @@ function hasLoneSurrogate(s) {
       i++; // paire valide, on saute le bas de paire déjà vérifié
     } else if (code >= 0xDC00 && code <= 0xDFFF) {
       return true; // bas de paire jamais précédé d'un haut de paire
+    } else if (code >= 0xE000 && code <= 0xF8FF) {
+      return true; // Zone d'Usage Privé — jamais un vrai emoji valide ici
     }
   }
   return false;
