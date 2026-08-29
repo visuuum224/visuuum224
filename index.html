@@ -6127,6 +6127,65 @@ function stripLeadingSymbols(s) {
 // emoji différent ou absent — et propose de les aligner sur le libellé exact
 // (emoji inclus) utilisé partout ailleurs sur le site (filtre, formulaires,
 // export Excel...). Ne touche jamais au champ "tag", uniquement "secteur".
+// Détecte un caractère Unicode invalide (demi-paire de substitution isolée)
+// dans une chaîne — ce n'est jamais un problème de police manquante, c'est un
+// caractère qui ne PEUT s'afficher correctement dans AUCUNE police, sur AUCUN
+// appareil. Se produit généralement suite à une troncature accidentelle d'un
+// emoji composé de plusieurs unités de code UTF-16 (import Excel, copier-
+// coller, manipulation de chaîne qui coupe au mauvais endroit).
+function hasLoneSurrogate(s) {
+  if (!s) return false;
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    if (code >= 0xD800 && code <= 0xDBFF) {
+      const next = s.charCodeAt(i + 1);
+      if (isNaN(next) || next < 0xDC00 || next > 0xDFFF) return true;
+      i++; // paire valide, on saute le bas de paire déjà vérifié
+    } else if (code >= 0xDC00 && code <= 0xDFFF) {
+      return true; // bas de paire jamais précédé d'un haut de paire
+    }
+  }
+  return false;
+}
+
+// Repère les entreprises dont le champ "emoji" contient un caractère
+// techniquement invalide, et le réinitialise au générique 🏢 déjà utilisé
+// comme repli partout ailleurs sur le site — jamais de tentative de deviner
+// un remplacement "plus adapté", pour rester honnête sur ce qu'on sait vraiment.
+async function repairBrokenEmojiHandler() {
+  const data = await window.getEntreprisesFromFirestore();
+  const toFix = data.filter(e => hasLoneSurrogate(e.emoji));
+
+  if (toFix.length === 0) {
+    alert("Aucun emoji corrompu détecté parmi les entreprises actuellement dans Firestore.");
+    return;
+  }
+
+  const apercu = toFix.slice(0, 5).map(e => `• ${e.nom}`).join('\n');
+  const confirmed = confirm(
+    toFix.length + " entreprise(s) ont un caractère \"emoji\" corrompu (invalide, illisible dans n'importe quelle police) :\n\n" +
+    apercu + (toFix.length > 5 ? `\n… et ${toFix.length - 5} autre(s)` : '') +
+    "\n\nRemplacer ce caractère cassé par l'icône générique 🏢 (comme pour toute entreprise sans emoji personnalisé) ?"
+  );
+  if (!confirmed) return;
+
+  let fixed = 0, errors = 0;
+  for (const e of toFix) {
+    try {
+      await window.updateEntrepriseFirestore(e.id, { emoji: '' });
+      const localMatch = entreprises.find(x => x.id === e.id);
+      if (localMatch) localMatch.emoji = '';
+      fixed++;
+    } catch (err) {
+      errors++;
+    }
+  }
+  alert("Réparation terminée : " + fixed + " emoji corrompu(s) réinitialisé(s)" + (errors ? (", " + errors + " échec(s)") : "") + ".");
+  logStaffAction('correction', 'emoji', fixed + " emoji corrompus réinitialisés");
+  renderEntreprises();
+  await loadAdminList();
+}
+
 async function normalizeSecteursHandler() {
   const data = await window.getEntreprisesFromFirestore();
   const canonicalByStripped = {};
@@ -9230,6 +9289,10 @@ function trackRecherche(terme) {
           <button onclick="normalizeSecteursHandler()"
             style="padding:8px 14px;background:#fff;border:1.5px solid #185FA5;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;color:#185FA5;cursor:pointer;white-space:nowrap;">
             🔧 Corriger les secteurs mal orthographiés
+          </button>
+          <button onclick="repairBrokenEmojiHandler()"
+            style="padding:8px 14px;background:#fff;border:1.5px solid #185FA5;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;color:#185FA5;cursor:pointer;white-space:nowrap;">
+            🩹 Réparer les emoji cassés
           </button>
           <button onclick="migrateSeedEntreprisesHandler()"
             style="padding:8px 14px;background:#fff;border:1.5px solid #E8622A;border-radius:6px;font-family:'Syne';font-size:11px;font-weight:700;color:#E8622A;cursor:pointer;white-space:nowrap;">
