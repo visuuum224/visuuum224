@@ -6305,7 +6305,19 @@ async function loadAdminList() {
   try {
     const data = await window.getEntreprisesFromFirestore();
     window._adminEntCache = data;
-    registerPaginatedList('adminList', data, renderAdminListPage);
+    // Si une recherche ou un filtre de date est actif dans les champs, on le
+    // réapplique immédiatement après le rechargement — sinon, après avoir
+    // modifié une entreprise depuis une liste déjà filtrée (ex: recherche
+    // "agro"), la liste revenait systématiquement à l'ensemble complet, alors
+    // même que le mot-clé restait visible dans le champ de recherche.
+    const hasActiveFilter = document.getElementById('al-search')?.value
+      || document.getElementById('al-date-from')?.value
+      || document.getElementById('al-date-to')?.value;
+    if (hasActiveFilter) {
+      filterAdminList();
+    } else {
+      registerPaginatedList('adminList', data, renderAdminListPage);
+    }
   } catch(err) {
     listEl.innerHTML = '<p style="color:#A32D2D;">Erreur de chargement.</p>';
   }
