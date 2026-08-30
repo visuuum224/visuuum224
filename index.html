@@ -3406,7 +3406,7 @@ function updateAdminOptions(regNat) {
 }
 
 function resetFilters() {
-  const ids = ['filterSecteur', 'filterRegionNat', 'filterRegionAdmin'];
+  const ids = ['filterSecteur', 'filterRegionNat', 'filterRegionAdmin', 'searchInput'];
   ids.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   currentSecteur = ''; currentRegionNat = ''; currentRegionAdmin = '';
   updateAdminOptions('');
